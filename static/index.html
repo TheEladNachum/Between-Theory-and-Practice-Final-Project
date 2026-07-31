@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IncidentIQ - AI-Assisted Incident Analysis</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128269;</text></svg>">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <div>
+      <h1>IncidentIQ</h1>
+      <p class="tagline">Evidence-first incident analysis. The AI proposes; you decide.</p>
+    </div>
+  </div>
+  <div class="header-actions">
+    <span id="config-status" class="pill pill-muted">checking&hellip;</span>
+    <button id="theme-toggle" class="btn btn-ghost" type="button" title="Toggle light / dark">
+      <span data-theme-icon>&#9789;</span>
+    </button>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- ------------------------------------------------------------------ -->
+  <!-- Input panel                                                         -->
+  <!-- ------------------------------------------------------------------ -->
+  <section class="panel panel-input" aria-labelledby="input-heading">
+    <div class="panel-head">
+      <h2 id="input-heading">Incident evidence</h2>
+      <div class="panel-head-actions">
+        <label class="select-wrap">
+          <span class="sr-only">Load an example incident</span>
+          <select id="example-select">
+            <option value="">Load example&hellip;</option>
+          </select>
+        </label>
+        <button id="clear-btn" class="btn btn-ghost btn-sm" type="button">Clear</button>
+      </div>
+    </div>
+
+    <form id="incident-form" class="panel-body">
+      <label class="field">
+        <span class="field-label">Incident title</span>
+        <input type="text" id="f-title" name="title"
+               placeholder="Checkout failures after v2.4.1">
+      </label>
+
+      <label class="field">
+        <span class="field-label">
+          What was reported
+          <em class="field-hint">In the reporter's own words. Do not clean it up.</em>
+        </span>
+        <textarea id="f-description" name="description" rows="3"
+                  placeholder="Support says customers can't complete checkout since this morning..."></textarea>
+      </label>
+
+      <div class="evidence-tabs" role="tablist" aria-label="Evidence type">
+        <button type="button" class="etab is-active" role="tab" data-target="pane-logs">Logs</button>
+        <button type="button" class="etab" role="tab" data-target="pane-traces">Traces</button>
+        <button type="button" class="etab" role="tab" data-target="pane-alerts">Alerts</button>
+        <button type="button" class="etab" role="tab" data-target="pane-deploy">Deploys</button>
+        <button type="button" class="etab" role="tab" data-target="pane-users">Users</button>
+        <button type="button" class="etab" role="tab" data-target="pane-extra">Other</button>
+      </div>
+
+      <div class="evidence-panes">
+        <div class="epane is-active" id="pane-logs" role="tabpanel">
+          <textarea id="f-logs" name="logs" rows="10" spellcheck="false"
+                    placeholder="Paste raw application logs here."></textarea>
+          <div class="drop-row">
+            <label class="file-btn">
+              Upload file
+              <input type="file" data-target-field="f-logs"
+                     accept=".txt,.log,.json,.csv,.md">
+            </label>
+            <span class="byte-count" data-count-for="f-logs">0 characters</span>
+          </div>
+        </div>
+
+        <div class="epane" id="pane-traces" role="tabpanel">
+          <textarea id="f-error_traces" name="error_traces" rows="10" spellcheck="false"
+                    placeholder="Stack traces, exceptions, panics."></textarea>
+          <div class="drop-row">
+            <label class="file-btn">
+              Upload file
+              <input type="file" data-target-field="f-error_traces"
+                     accept=".txt,.log,.json,.md">
+            </label>
+            <span class="byte-count" data-count-for="f-error_traces">0 characters</span>
+          </div>
+        </div>
+
+        <div class="epane" id="pane-alerts" role="tabpanel">
+          <textarea id="f-alerts" name="alerts" rows="10" spellcheck="false"
+                    placeholder="Monitoring alerts, pager notifications, dashboards."></textarea>
+          <div class="drop-row">
+            <label class="file-btn">
+              Upload file
+              <input type="file" data-target-field="f-alerts"
+                     accept=".txt,.log,.json,.csv,.md">
+            </label>
+            <span class="byte-count" data-count-for="f-alerts">0 characters</span>
+          </div>
+        </div>
+
+        <div class="epane" id="pane-deploy" role="tabpanel">
+          <textarea id="f-deployment_notes" name="deployment_notes" rows="10" spellcheck="false"
+                    placeholder="Recent deploys, config changes, migrations, feature flags."></textarea>
+          <div class="drop-row">
+            <label class="file-btn">
+              Upload file
+              <input type="file" data-target-field="f-deployment_notes"
+                     accept=".txt,.log,.json,.md">
+            </label>
+            <span class="byte-count" data-count-for="f-deployment_notes">0 characters</span>
+          </div>
+        </div>
+
+        <div class="epane" id="pane-users" role="tabpanel">
+          <textarea id="f-user_reports" name="user_reports" rows="10" spellcheck="false"
+                    placeholder="Support tickets, user complaints, chat messages."></textarea>
+          <div class="drop-row">
+            <label class="file-btn">
+              Upload file
+              <input type="file" data-target-field="f-user_reports"
+                     accept=".txt,.json,.csv,.md">
+            </label>
+            <span class="byte-count" data-count-for="f-user_reports">0 characters</span>
+          </div>
+        </div>
+
+        <div class="epane" id="pane-extra" role="tabpanel">
+          <textarea id="f-extra" name="extra" rows="10" spellcheck="false"
+                    placeholder="Anything else: CSV, JSON, database errors, notes."></textarea>
+          <div class="drop-row">
+            <label class="file-btn">
+              Upload file
+              <input type="file" data-target-field="f-extra"
+                     accept=".txt,.log,.json,.csv,.md">
+            </label>
+            <span class="byte-count" data-count-for="f-extra">0 characters</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="run-row">
+        <button id="analyse-btn" class="btn btn-primary" type="submit">
+          Analyse incident
+        </button>
+        <button id="cancel-btn" class="btn btn-ghost" type="button" hidden>Cancel</button>
+      </div>
+      <p class="run-note">
+        Runs six analysis stages. Each stage cites the evidence it used, and
+        every citation is checked against your input afterwards.
+      </p>
+    </form>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <!-- Results panel                                                       -->
+  <!-- ------------------------------------------------------------------ -->
+  <section class="panel panel-results" aria-labelledby="results-heading">
+    <div class="panel-head">
+      <h2 id="results-heading">Investigation</h2>
+      <div class="panel-head-actions">
+        <button id="export-btn" class="btn btn-ghost btn-sm" type="button" disabled>
+          Export Markdown
+        </button>
+      </div>
+    </div>
+
+    <div id="progress" class="progress" hidden>
+      <ol class="progress-steps" id="progress-steps"></ol>
+    </div>
+
+    <div id="warnings" class="warnings" hidden></div>
+
+    <nav class="result-tabs" id="result-tabs" role="tablist" aria-label="Investigation section" hidden>
+      <button class="rtab is-active" role="tab" data-view="summary">Summary</button>
+      <button class="rtab" role="tab" data-view="timeline">Timeline</button>
+      <button class="rtab" role="tab" data-view="hypotheses">Hypotheses</button>
+      <button class="rtab" role="tab" data-view="risks">Reasoning risks</button>
+      <button class="rtab" role="tab" data-view="actions">Actions</button>
+      <button class="rtab" role="tab" data-view="postmortem">Postmortem</button>
+    </nav>
+
+    <div class="panel-body" id="results-body">
+      <div class="empty-state" id="empty-state">
+        <div class="empty-mark" aria-hidden="true"></div>
+        <h3>No investigation yet</h3>
+        <p>
+          Paste evidence on the left, or load one of the example incidents,
+          then run the analysis.
+        </p>
+        <ul class="empty-list">
+          <li><strong>Facts</strong> - what the data directly says</li>
+          <li><strong>Assumptions</strong> - believed but not proven</li>
+          <li><strong>Hypotheses</strong> - possible causes, ranked, each with a test</li>
+          <li><strong>Actions</strong> - what to check next, and why</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="app-footer">
+  <span>IncidentIQ &mdash; final project, Computer Science: Critical Thinking, Problem Solving and 21st-Century Skills</span>
+  <span id="model-badge" class="pill pill-muted"></span>
+</footer>
+
+<script type="module" src="/static/js/main.js"></script>
+</body>
+</html>
