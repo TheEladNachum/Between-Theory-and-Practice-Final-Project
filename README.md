@@ -2,9 +2,7 @@
 
 
 
-### Demo video:
-
-https://drive.google.com/file/d/1atCCb-iVqRihPl3nfPx1juA51AX\_elzq/view?usp=drive\_link
+**Demo video:** [Watch the IncidentIQ demonstration](https://drive.google.com/file/d/1atCCb-iVqRihPl3nfPx1juA51AX_elzq/view?usp=drive_link)
 
 
 
