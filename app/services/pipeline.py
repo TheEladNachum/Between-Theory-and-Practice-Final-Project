@@ -19,7 +19,7 @@ import logging
 from typing import Any, Dict, Iterator, List
 
 from app.ai import prompts
-from app.ai.client import ClaudeClient, ModelError
+from app.ai.client import AIClient, ModelError
 from app.core import evidence as evidence_check
 from app.schemas import AnalysisResult, EvidenceRef, IncidentInput
 from app.services import (
@@ -37,7 +37,7 @@ log = logging.getLogger("incidentiq.pipeline")
 _REF_FIELDS = ("evidence", "supporting_evidence", "contradicting_evidence")
 
 
-def run(client: ClaudeClient, incident: IncidentInput) -> Iterator[Dict[str, Any]]:
+def run(client: AIClient, incident: IncidentInput) -> Iterator[Dict[str, Any]]:
     """Run the full analysis, yielding progress events as each stage finishes.
 
     Yields dicts shaped for the SSE stream: `stage_start`, `stage_done`,

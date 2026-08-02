@@ -72,7 +72,7 @@ def canned(stage: str):
 
 
 class StubClient:
-    """Stands in for ClaudeClient. `failing` names stages that should raise."""
+    """Stands in for AIClient. `failing` names stages that should raise."""
 
     def __init__(self, failing: tuple[str, ...] = ()) -> None:
         self.failing = failing

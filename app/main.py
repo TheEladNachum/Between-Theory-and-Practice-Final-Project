@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
-from app.ai.client import ClaudeClient, ModelError
+from app.ai.client import AIClient, ModelError
 from app.config import EXAMPLES_DIR, STATIC_DIR, get_settings
 from app.schemas import IncidentInput
 from app.services import pipeline
@@ -63,8 +63,8 @@ def config() -> Dict[str, Any]:
     settings = get_settings()
     return {
         "configured": settings.is_configured,
-        "model": settings.anthropic_model,
-        "effort": settings.effort,
+        "provider": settings.provider_name,
+        "model": settings.ai_model,
         "version": __version__,
     }
 
@@ -121,8 +121,9 @@ def analyse(incident: IncidentInput) -> StreamingResponse:
     if not settings.is_configured:
         raise HTTPException(
             status_code=503,
-            detail="No ANTHROPIC_API_KEY configured. Copy .env.example to .env, add "
-                   "your key, and restart the server.",
+            detail="No AI_API_KEY configured. Copy .env.example to .env, set "
+                   "AI_API_KEY (and AI_BASE_URL / AI_MODEL if not using the "
+                   "default), and restart the server.",
         )
     if incident.is_empty():
         raise HTTPException(
@@ -132,7 +133,7 @@ def analyse(incident: IncidentInput) -> StreamingResponse:
 
     def stream() -> Iterator[str]:
         try:
-            client = ClaudeClient(settings)
+            client = AIClient(settings)
         except ModelError as exc:
             yield _sse({"type": "error", "message": str(exc)})
             return

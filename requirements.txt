@@ -1,6 +1,9 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
-anthropic>=0.75.0
+# The OpenAI SDK is used only as a generic client for OpenAI-compatible chat
+# endpoints (Gemini, Groq, OpenRouter, Ollama, OpenAI, ...). The project does
+# not use OpenAI itself - the endpoint is chosen entirely in .env.
+openai>=1.55.0
 pydantic==2.10.4
 pydantic-settings==2.7.0
 python-dotenv==1.0.1

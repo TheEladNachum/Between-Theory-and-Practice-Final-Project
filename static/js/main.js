@@ -67,7 +67,7 @@ async function loadConfig() {
     const config = await getConfig();
     setState({ config });
 
-    $('#model-badge').textContent = `${config.model} · effort: ${config.effort}`;
+    $('#model-badge').textContent = `${config.provider} · ${config.model}`;
 
     if (config.configured) {
       pill.className = 'pill pill-ok';
@@ -76,8 +76,8 @@ async function loadConfig() {
       pill.className = 'pill pill-danger';
       pill.textContent = 'no API key';
       pushWarning(
-        'No ANTHROPIC_API_KEY found. Copy .env.example to .env and paste your key, '
-        + 'then restart the server.',
+        'No AI_API_KEY found. Copy .env.example to .env, set AI_API_KEY (a free '
+        + 'Gemini key works with the defaults), then restart the server.',
         true,
       );
       $('#analyse-btn').disabled = true;

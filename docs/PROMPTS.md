@@ -11,23 +11,22 @@ prompt is then printed to the console before it is sent.
 
 ## 1. Request structure
 
-Each of the six stages sends the same three things in the same order:
+Each stage sends two messages over the OpenAI-compatible chat protocol:
 
 ```
 system:   SYSTEM_PROMPT                  (identical for all six stages)
-user:     [0] evidence block             (identical for all six stages)  <- cache breakpoint
-          [1] prior context              (varies: results of earlier stages)
-          [2] stage instruction          (varies)
+user:     evidence block                 (identical for all six stages)
+          + prior context                (varies: results of earlier stages)
+          + stage instruction            (varies)
 ```
 
-The ordering is not cosmetic. Prompt caching matches on an exact prefix, and
-the API renders `system` before `messages`. Putting the two constant blocks
-first means all six stages share one cached prefix, so the evidence is charged
-at full price once rather than six times.
-
-The cache only engages above a minimum prefix size, so a short incident will
-not hit it at all. That is expected. It is visible in `usage.cache_read_input_tokens`
-if you want to confirm it during a run.
+The user message is assembled constant-first on purpose: the evidence block,
+which is the same for every stage, comes before the prior context and the
+stage instruction, which change. The rationale is that a provider which caches
+identical prefixes can reuse the evidence across the six calls - but nothing in
+the code depends on that. Prefix caching is a provider-specific optimisation,
+and this tool is provider-agnostic, so the ordering is a free win where it
+applies and harmless where it does not.
 
 ---
 
@@ -180,16 +179,38 @@ to inventing a tidy detail to round out a sentence.
 
 ## 6. Model settings
 
+The tool talks to any OpenAI-compatible endpoint, chosen entirely in `.env`.
+Nothing here is tied to a particular provider.
+
 | Setting | Value | Why |
 | --- | --- | --- |
-| Model | `claude-opus-4-8` | Configurable via `ANTHROPIC_MODEL`. |
-| Thinking | adaptive | The model decides how much to reason per stage. The hypothesis and risk stages need far more than the summary stage; a fixed budget would over-spend on one and starve the other. |
-| Effort | `high` | Configurable via `ANTHROPIC_EFFORT`. `low` is useful while developing to save tokens. |
-| Output | structured (JSON schema) | The schema is generated from the Pydantic model by `strict_schema()`, so the contract cannot drift from the parsing code. |
-| Streaming | on | Six stages at high effort exceed a comfortable single-request timeout. |
+| Endpoint / model | `AI_BASE_URL` / `AI_MODEL` | Set in `.env`. The default is Google Gemini (`gemini-2.5-flash`), which has a free tier. Groq, OpenRouter, a local Ollama model, OpenAI and Anthropic are one uncommented block away. |
+| Output | structured JSON | The request first asks for the provider's formal `json_schema` response format, generated from the Pydantic model by `strict_schema()`, so the contract cannot drift from the parsing code. |
+| Fallback | plain JSON object | If a provider cannot enforce the schema, the client retries once in `json_object` mode with the schema described in the prompt (`schema_hint()`). Either way the output is validated by `parse_into()`. |
+| Streaming | on | The response is streamed and reassembled, so a slow provider does not trip a single-request timeout. |
 
-Structured outputs are worth one more note. Asking a model to "reply in JSON"
-and parsing what comes back means every stage can fail in a new way. Constraining
-the response to a schema removes that class of bug - but more importantly it
-removes the temptation to accept a well-written prose answer that does not
-actually separate facts from guesses. The shape is the discipline.
+Two settings that an earlier version had are deliberately gone: **prompt
+caching** and **adaptive thinking / effort**. Both were specific to a single
+vendor's API. The reflective report records why they were dropped when the tool
+became provider-agnostic.
+
+Structured output is worth one closing note. Asking a model to "reply in JSON"
+and parsing whatever comes back means every stage can fail in a new way.
+Constraining the response to a schema removes that class of bug - but more
+importantly it removes the temptation to accept a well-written prose answer
+that has quietly blurred a guess into a fact. The shape is the discipline.
+
+---
+
+## 7. Provider portability and the prompts
+
+Making the tool provider-agnostic did **not** require changing a single prompt.
+Every instruction in `app/ai/prompts.py` is written in plain language about
+evidence, citation and uncertainty - none of it depends on a vendor-specific
+feature. That is why the same prompts run unchanged against Gemini, Groq, a
+local model, or any other OpenAI-compatible endpoint.
+
+The one provider-shaped concern - that not every endpoint can enforce a formal
+JSON schema - is handled in the client, not the prompts, by the fallback in
+section 6. The prompts stayed a stable, portable contract while the transport
+underneath them changed.

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.ai import prompts
-from app.ai.client import ClaudeClient
+from app.ai.client import AIClient
 from app.schemas import (
     ActionsResult,
     HypothesesResult,
@@ -15,7 +15,7 @@ STAGE = "actions"
 
 
 def run(
-    client: ClaudeClient,
+    client: AIClient,
     evidence_block: str,
     summary: SummaryResult | None,
     hypotheses: HypothesesResult | None,

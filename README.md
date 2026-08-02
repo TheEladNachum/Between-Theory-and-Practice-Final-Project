@@ -51,9 +51,17 @@ python -m uvicorn app.main:app --reload
 
 Then open <http://127.0.0.1:8000>.
 
-You need an Anthropic API key from
-<https://console.anthropic.com/settings/keys>. `.env` is git-ignored and must
-never be committed.
+### The API key
+
+IncidentIQ works with any OpenAI-compatible provider. The default settings use
+**Google Gemini**, which has a free tier - get a free key at
+<https://aistudio.google.com/apikey> and paste it into `.env` after
+`AI_API_KEY=`.
+
+To use a different provider (Groq, OpenRouter, a local Ollama model, OpenAI,
+Anthropic), uncomment the relevant block in `.env.example` - it is a change to
+`.env` only, never to the code. `.env` is git-ignored and must never be
+committed.
 
 ---
 
@@ -102,16 +110,18 @@ Everything exports to a single Markdown file.
 
 ## Configuration
 
-All configuration is in `.env`. See `.env.example` for the annotated version.
+All configuration is in `.env`. See `.env.example` for the annotated version,
+including ready-to-use blocks for Groq, OpenRouter, Ollama, OpenAI and
+Anthropic.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | *(none)* | **Required.** Your API key. |
-| `ANTHROPIC_MODEL` | `claude-opus-4-8` | Which model to use. |
-| `ANTHROPIC_EFFORT` | `high` | Reasoning depth vs. cost: `low`, `medium`, `high`, `xhigh`, `max`. Use `low` while developing. |
+| `AI_BASE_URL` | Gemini's OpenAI-compatible endpoint | The chat endpoint to call. |
+| `AI_API_KEY` | *(none)* | **Required.** Your key for that endpoint. |
+| `AI_MODEL` | `gemini-2.5-flash` | Which model to use. |
 | `MAX_OUTPUT_TOKENS` | `16000` | Output cap per stage. |
 | `HOST` / `PORT` | `127.0.0.1` / `8000` | Where the server listens. |
-| `LOG_PROMPTS` | `false` | Print every prompt to the console before sending. Useful when writing the report. |
+| `LOG_PROMPTS` | `false` | Print every prompt to the console before sending. |
 
 ---
 
@@ -124,16 +134,16 @@ app/
   main.py          HTTP routes and the streaming analysis endpoint
   config.py        All configuration
   schemas.py       The data model: Fact / Assumption / Hypothesis / Action
-  ai/              The only package that imports the Anthropic SDK
+  ai/              Talks to any OpenAI-compatible provider
     prompts.py     Every prompt, in one place
-    client.py      Structured outputs, caching, adaptive thinking
-    parsing.py     Pydantic model -> strict JSON schema, and back
+    client.py      Structured output, with a plain-JSON fallback
+    parsing.py     Pydantic model -> JSON schema (and prompt hint), and back
   core/
     biases.py      The eight biases from the brief, as data
     evidence.py    Citation verification
   services/        One module per stage, plus pipeline.py
 examples/          Three realistic incident datasets
-tests/             51 tests - no API key needed
+tests/             61 tests - no API key needed
 docs/              Prompt documentation and the reflective report draft
 ```
 
@@ -146,7 +156,7 @@ docs/              Prompt documentation and the reflective report draft
 .venv/bin/python -m pytest              # macOS / Linux
 ```
 
-51 tests, none of which call the API or need a key. They cover the citation
+61 tests, none of which call the API or need a key. They cover the citation
 checker (the component the tool's credibility rests on), schema generation,
 the HTTP layer, and the pipeline's behaviour when stages fail.
 

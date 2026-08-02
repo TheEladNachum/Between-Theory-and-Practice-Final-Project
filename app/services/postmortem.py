@@ -8,7 +8,7 @@ postmortem at all.
 from __future__ import annotations
 
 from app.ai import prompts
-from app.ai.client import ClaudeClient
+from app.ai.client import AIClient
 from app.schemas import (
     ActionsResult,
     HypothesesResult,
@@ -22,7 +22,7 @@ STAGE = "postmortem"
 
 
 def run(
-    client: ClaudeClient,
+    client: AIClient,
     evidence_block: str,
     summary: SummaryResult | None,
     timeline: TimelineResult | None,

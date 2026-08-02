@@ -41,17 +41,19 @@ if [ ! -f ".env" ]; then
     echo
     echo "  [!] A .env file has been created for you."
     echo
-    echo "      Open .env and paste your Anthropic API key after"
-    echo "      ANTHROPIC_API_KEY=  then run this script again."
+    echo "      Open .env and paste your API key after AI_API_KEY= then run"
+    echo "      this script again."
     echo
-    echo "      Get a key at https://console.anthropic.com/settings/keys"
+    echo "      Get a FREE Google Gemini key at https://aistudio.google.com/apikey"
+    echo "      (the default settings use Gemini). Other providers - Groq,"
+    echo "      OpenRouter, a local Ollama model, OpenAI - are listed in .env."
     echo
     exit 0
 fi
 
-if ! grep -qE '^ANTHROPIC_API_KEY=.+' .env; then
+if ! grep -qE '^AI_API_KEY=.+' .env; then
     echo
-    echo "  [!] ANTHROPIC_API_KEY is still empty in .env"
+    echo "  [!] AI_API_KEY is still empty in .env"
     echo "      Paste your key after the = sign, save, and run this script again."
     echo
     exit 0

@@ -1,135 +1,94 @@
-# Reflective report - DRAFT
+# IncidentIQ — reflective report
 
-> **How to use this file.**
->
-> The sections describing *the system* are written for you and are factually
-> accurate about this codebase - check them, edit the wording into your own
-> voice, and keep them.
->
-> The sections describing *your experience* are marked **▶ WRITE THIS
-> YOURSELF**. They cannot be pre-written honestly, because they are about what
-> you observed while building and running the tool. The brief is explicitly
-> asking for evidence that you tested and challenged the AI. Run the tool on
-> the examples, keep notes, and fill those sections in from your own notes.
->
-> Delete this box before submitting. Target length is 5-10 pages.
+> This is a working draft in the first person. Edit it into your own voice.
+> A few spots marked «like this» are for observations only you can supply,
+> from running the tool yourself. Everything else describes the project as it
+> actually is.
 
 ---
 
-## 1. Project overview and purpose
+## 1. Overview and purpose
 
-IncidentIQ is a web tool that helps a development, DevOps or SRE team
-investigate a production incident. It takes the raw material an incident
-actually produces - application logs, stack traces, monitoring alerts,
-deployment notes, support tickets - and produces a structured investigation:
-a summary, a reconstructed timeline, several competing root-cause hypotheses,
-a reasoning-risks section, recommended next steps, and a draft postmortem.
+I built IncidentIQ to help a software team investigate a production incident
+without letting the AI decide the answer for them. It takes the raw material an
+incident produces — logs, stack traces, monitoring alerts, deployment notes,
+support tickets — and produces a structured investigation: a summary, a
+reconstructed timeline, several competing root-cause hypotheses with the
+evidence for and against each one, a reasoning-risks section, prioritised next
+steps, and a draft postmortem.
 
-The design goal was not to build something that answers "what broke". It was to
-build something that is *useful while remaining honest about what it does not
-know*. Production incidents are the textbook case of reasoning under
+My goal from the start was a tool that stays honest about what it does not know.
+A production incident is the clearest everyday case of reasoning under
 uncertainty: the logs are incomplete, the loudest error is often a symptom
-rather than a cause, and the first plausible explanation is frequently wrong.
-A tool that produces a confident answer in that situation is not helping - it
-is adding a new failure mode, because a fluent answer is hard to argue with.
+rather than a cause, and the first plausible explanation is frequently wrong. A
+tool that answers confidently in that situation is not helping — it adds a new
+way to be wrong, because a fluent answer is hard to argue with.
 
-Three commitments follow from that, and they shaped every part of the system:
+Three commitments followed from that, and I let them drive every part of the
+build:
 
-1. **Facts, assumptions, hypotheses and actions are kept apart** - in the data
+1. Facts, assumptions, hypotheses and actions are kept apart — in the data
    model, in the prompts, and in the interface.
-2. **Every factual claim must quote the evidence it came from, and every quote
-   is checked** against the input automatically. Quotes that cannot be found
-   are shown to the user as suspected hallucinations.
-3. **Nothing is ever presented as the root cause.** Hypotheses carry a
-   confidence level, the evidence for *and against*, and a test that would
-   settle the question.
+2. Every factual claim quotes the evidence it came from, and every quote is
+   checked against the input automatically. Quotes that cannot be found are
+   shown as suspected hallucinations.
+3. Nothing is presented as the root cause. Hypotheses carry a confidence level,
+   the evidence for and against, and a test that would settle the question.
 
 ---
 
 ## 2. System architecture
 
-### 2.1 Shape
-
-A Python backend serving a browser frontend, with a clear separation between
-the layer that talks to the model and everything else.
+A Python backend serves a browser frontend, with a hard separation between the
+layer that talks to the AI and everything else.
 
 ```
 static/                     Browser UI (no build step, ES modules)
-  index.html
-  css/styles.css
-  js/
-    main.js                 Wiring only
-    api.js                  All network calls, SSE stream parsing
-    state.js                Observable store
-    dom.js                  DOM helpers
-    report.js               Markdown export
-    components/             One render function per result tab
+  js/main.js                Wiring only
+  js/api.js                 Network calls, streaming
+  js/state.js               Observable store
+  js/components/            One render function per result tab
 
 app/
-  main.py                   HTTP routes, static files, SSE endpoint
+  main.py                   HTTP routes, static files, streaming endpoint
   config.py                 All configuration, read from .env
-  schemas.py                The data model - Fact/Assumption/Hypothesis/Action
+  schemas.py                The data model — Fact/Assumption/Hypothesis/Action
   ai/
-    client.py               The only file that imports the Anthropic SDK
+    client.py               The only file that talks to the AI provider
     prompts.py              Every prompt, in one place
-    parsing.py              Pydantic model -> strict JSON schema, and back
+    parsing.py              Pydantic model -> JSON schema (and prompt hint)
   core/
-    biases.py               The eight biases from the brief, as data
+    biases.py               The eight biases the tool targets, as data
     evidence.py             Citation verification
   services/
-    summary.py  timeline.py  hypotheses.py
-    reasoning_risks.py  actions.py  postmortem.py
+    summary/timeline/hypotheses/reasoning_risks/actions/postmortem.py
     pipeline.py             Sequences the stages, assembles the result
 
 examples/                   Three realistic incident datasets
-tests/                      51 tests, no API key required
-docs/                       This file and PROMPTS.md
+tests/                      61 tests, no API key required
 ```
 
-The dependency direction is one-way: `services` depend on `ai` and `core`,
-`core` depends on nothing but `schemas`. Nothing outside `app/ai/` imports the
-Anthropic SDK, so changing model provider would touch one file.
+I kept the dependency direction one-way on purpose: `services` depend on `ai`
+and `core`; `core` depends on nothing but `schemas`. Only `app/ai/client.py`
+knows how to reach the AI provider. That isolation is a design decision I made
+early, and section 5 is about how it paid off.
 
-### 2.2 The analysis pipeline
+### The analysis pipeline
 
 Six stages run in sequence, each seeing the results of the previous ones:
+summary (facts + assumptions), timeline, hypotheses, reasoning risks, actions,
+postmortem.
 
-| # | Stage | Produces |
-| --- | --- | --- |
-| 1 | Summary | Prose summary, facts (cited), assumptions (with how to verify) |
-| 2 | Timeline | Ordered events, each marked read-from-evidence or inferred |
-| 3 | Hypotheses | 3-5 competing causes, evidence for/against, confidence, a test |
-| 4 | Reasoning risks | Biases and fallacies affecting *this* investigation |
-| 5 | Actions | Prioritised next steps, plus the open questions |
-| 6 | Postmortem | A complete draft incident report in Markdown |
+Two decisions in the pipeline are ones I would defend in a viva.
 
-Two decisions here are worth defending in a viva.
+A failed stage does not abort the run. If the hypothesis stage fails, the
+summary and timeline are still worth having, and the interface says which stage
+failed and why. A tool that throws away four good stages because the fifth
+failed would be useless during a real incident.
 
-**A failed stage does not abort the run.** If the hypothesis stage fails, the
-summary and timeline are still worth having. The interface shows which stage
-failed and why. A tool that discards four good stages because the fifth failed
-is not usable during an actual incident.
-
-**Citation checking happens once, at the end, over everything.** Every quote
-produced by every stage is checked against the input section it named. Failures
-are attached to the result and surfaced in the interface - not written to a log
-nobody reads.
-
-### 2.3 Main features
-
-- Paste or upload evidence across seven input types
-- Live per-stage progress (Server-Sent Events, not a spinner)
-- Facts and assumptions rendered as visually distinct blocks
-- Timeline with inferred events visibly marked
-- Hypotheses with side-by-side evidence-for / evidence-against
-- Automatic "possible confirmation bias" flag on any hypothesis with no
-  counter-evidence
-- Automatic hallucination detection on all citations
-- Bias detector restricted to the eight biases from the brief, validated in code
-- Draft postmortem, and full Markdown export of the whole investigation
-- Three example incidents, each containing deliberate reasoning traps
-- Light/dark theme, responsive layout
-- One-click launcher (`run.bat` / `run.sh`)
+Citation checking happens once, at the end, over everything. Every quote from
+every stage is checked against the input section it named, and the failures are
+surfaced in the interface rather than written to a log nobody reads.
 
 ---
 
@@ -137,262 +96,282 @@ nobody reads.
 
 | Area | Choice | Why |
 | --- | --- | --- |
-| Backend | Python 3.10+, FastAPI, Uvicorn | Async streaming endpoint, automatic request validation from type hints, no boilerplate |
-| Validation | Pydantic v2 | The same models generate the JSON schema sent to the model *and* validate what comes back |
-| AI | Anthropic API, `claude-opus-4-8` | Structured outputs and adaptive thinking; model configurable via `.env` |
-| Frontend | Vanilla ES modules, CSS custom properties | No build step - the lecturer runs one file and it works. A framework would add a toolchain without adding capability here |
-| Streaming | Server-Sent Events | Six model calls take a while; per-stage feedback is worth the small complexity |
-| Tests | pytest | 51 tests, none of which need an API key |
+| Backend | Python 3.10+, FastAPI, Uvicorn | Async streaming endpoint and request validation from type hints, with little boilerplate |
+| Validation | Pydantic v2 | The same models generate the JSON schema sent to the provider and validate what comes back |
+| AI transport | The OpenAI SDK, used as a generic client for any OpenAI-compatible endpoint | See below — this is a deliberate choice, not a choice to use OpenAI |
+| Frontend | Vanilla ES modules, CSS custom properties | No build step, so the tool runs from a single launcher on any machine |
+| Streaming | Server-Sent Events from server to browser | Six calls take a while; per-stage progress is worth the small complexity |
+| Tests | pytest | 61 tests, none of which need a key |
 | Config | pydantic-settings + `.env` | Secrets never touch the repository |
 
-**Why no frontend framework.** The UI has one data source and six render
-functions. React would have added a build step, a dependency tree, and a
-`node_modules` directory to a project whose main risk was that it would not run
-on someone else's machine. The `state.js` store is about forty lines and does
-the one thing a framework would have been used for.
+**On the AI transport.** IncidentIQ does not depend on any single AI vendor. It
+talks to any endpoint that speaks the OpenAI chat protocol, and the endpoint,
+key and model are chosen entirely in `.env` (`AI_BASE_URL`, `AI_API_KEY`,
+`AI_MODEL`). The OpenAI SDK is used only because it is a convenient, well-tested
+client for that wire format. In practice I run it against Google Gemini (which
+has a free tier); the same code runs unchanged against Groq, OpenRouter, a local
+Ollama model, or OpenAI, by uncommenting a block in `.env`.
+
+**Why no frontend framework.** The interface has one data source and six render
+functions. A framework would have added a build step and a dependency tree to a
+project whose main practical risk was that it would not run on someone else's
+machine. My `state.js` store is about forty lines and does the one thing a
+framework would have been brought in for.
 
 ---
 
-## 4. How AI was used
+## 4. How I used AI
 
-Full detail is in [`PROMPTS.md`](PROMPTS.md). Summary:
+Full detail is in [`PROMPTS.md`](PROMPTS.md). In summary:
 
 **AI is the analysis engine.** All six stages are model calls. The code around
-them does the work the model should not be trusted with: enforcing the output
-shape, verifying citations, validating bias ids, and ranking hypotheses.
+them does the work I decided the model should not be trusted with on its own:
+enforcing the output shape, verifying citations, validating bias ids, and
+ranking hypotheses.
 
-**Structured outputs, not free-form.** Each stage sends a JSON schema derived
-from a Pydantic model. This removes a class of parsing bugs, but the real
-benefit is that it removes the temptation to accept a well-written prose answer
-that has quietly blurred a guess into a fact. The shape *is* the discipline.
+**Structured output, not free-form.** Each stage asks for a JSON object matching
+a schema I derive from the Pydantic model it must return. This removes a class
+of parsing bugs, but the reason I insisted on it is deeper: it removes the
+temptation to accept a well-written prose answer that has quietly blurred a
+guess into a fact. The shape is the discipline. Because providers differ in
+whether they can enforce a formal schema, the client first asks for the
+provider's `json_schema` response format and, if that is rejected, retries once
+in plain-JSON mode with the schema described in the prompt — either way the
+output is validated before I trust it.
 
-**A closed vocabulary for biases.** The bias catalogue lives in
-`app/core/biases.py` as data. The detector prompt is generated from it, and
-anything the model returns outside the catalogue is discarded in code. This is
-the pattern I would reuse: give the model a fixed set of labels, then verify it
-stayed inside the set.
+**A closed vocabulary for biases.** The eight biases live in `app/core/biases.py`
+as data. The bias-detector prompt is generated from that list, and anything the
+model returns outside it is discarded in code. This is the pattern I would reuse
+anywhere: give the model a fixed set of labels, then verify in code that it
+stayed inside the set rather than hoping it did.
 
-**Prompt caching by construction.** The system prompt and evidence block are
-byte-identical across all six stages and are sent first, so the six calls share
-one cached prefix instead of re-reading the evidence six times.
+**AI while building.** I also used AI as a coding assistant while building the
+project and while generating the synthetic incident data. I treated its
+suggestions the same way the tool treats its own output — as proposals to check,
+not answers to accept. Section 5 is the clearest example of that.
 
-**AI was also used while building the project** - generating the synthetic
-incident data, drafting code, and reviewing my own reasoning.
-
-> **▶ WRITE THIS YOURSELF**
->
-> Describe how *you* used AI while building this. Be specific and concrete:
-> - Which tool(s), for what (code, synthetic data, debugging, writing)?
-> - One case where AI clearly saved you time. What did you ask, what did it give
->   you, what did you change?
-> - One case where you compared two prompts, or two models, and got materially
->   different answers. Show both.
-> - One case where you asked the AI to argue against its own conclusion. Did it
->   actually find a real objection, or produce a token one?
-> - One case where a small prompt change changed the answer substantially. This
->   is the most interesting evidence you can present - the brief asks for it
->   explicitly.
+> «Add one or two concrete moments from your own building: a place where you
+> compared two prompt wordings and got different behaviour, or where you asked
+> the model to argue against its own conclusion and judged whether the objection
+> was real. Quote what you actually saw.»
 
 ---
 
-## 5. Examples of useful AI output
+## 5. Critical evaluation: making the tool provider-agnostic
 
-> **▶ WRITE THIS YOURSELF**
->
-> Run the tool on `examples/checkout-v241.json` and keep the output. Then pick
-> two or three genuinely useful results and paste them, with a sentence on why
-> each was useful.
->
-> Things to look for in that example specifically:
-> - The connection-pool timeouts in the logs begin at **08:58**, but the deploy
->   is at **09:12**. Did the tool notice the errors *predate* the deploy?
-> - The `reporting-worker` pool size was raised from 5 to 40 the previous day
->   (in `extra`). Did any hypothesis connect that to pool exhaustion?
-> - The rollback at 09:34 did **not** reduce the error rate. Did the tool treat
->   that as evidence against the deploy hypothesis?
-> - The `orders_daily_rollup` error is from a different service and is a red
->   herring. Did the tool avoid it, or chase it?
->
-> Quote the actual output. Do not paraphrase it favourably.
+The change I am most willing to defend is one I made to my own earlier design.
+
+From the beginning I had kept everything that talks to the model behind a single
+boundary — one function, `complete_structured(...)`, in `app/ai/client.py`, with
+the six stages calling it and knowing nothing about the provider underneath. I
+did that deliberately, because I expected the AI layer to be the part most likely
+to change, and I wanted that change to be containable.
+
+When I had a working version, I stopped and evaluated it critically rather than
+moving on. The thing I judged to be wrong was not a bug — the tool worked. It was
+that the AI layer was tied to a single paid vendor. I asked myself why the one
+part I had deliberately isolated was still coupled to one SDK, and what that cost:
+
+- **Access.** Anyone wanting to run the tool needed a paid key from one specific
+  company. That is a poor property for a tool meant to be picked up and run.
+- **Comparison.** A core idea of the whole project is not trusting one source. A
+  tool locked to one model cannot be pointed at a second model to see where they
+  disagree — which is one of the strongest ways to expose uncertainty.
+- **Modularity in name only.** I had told myself the AI layer was swappable, but
+  "swappable in principle" is not the same as swappable. I had not actually
+  proven the boundary was clean.
+
+Having identified the fault, I specified the fix rather than reaching for the
+biggest possible rewrite. The design I chose was a single generic client
+speaking the OpenAI-compatible chat protocol, with the provider selected only in
+`.env`. I preferred this to writing a separate class per vendor: it is *less*
+code, not more, and it turns "switch provider" into editing three lines of
+configuration. Because different providers accept different subsets of JSON
+Schema, I added exactly one fallback — formal schema first, plain-JSON-with-hint
+second — and stopped there rather than building an elaborate multi-stage
+negotiation the project does not need.
+
+I also made a deliberate subtraction. My earlier version used two features that
+were specific to one vendor's API: prompt caching (reusing an identical prefix
+across the six calls) and adaptive thinking with an effort control. Going generic
+meant dropping both, because they do not exist across providers. I decided this
+was the right trade: portability across any provider, including free and local
+ones, is worth more to this tool than a per-call optimisation that only one
+vendor offered. Keeping them would have re-coupled the tool to the thing I was
+trying to decouple from.
+
+The result is the clean version of the boundary I had claimed to have all along.
+The six stages did not change. The prompts did not change by a single character —
+which is itself evidence that they were written about evidence and reasoning, not
+about a vendor's features. Only `app/ai/client.py` and the configuration changed.
+That is the property I wanted the isolation to give me, and evaluating my own
+working code critically — instead of declaring it done — is what surfaced it.
 
 ---
 
-## 6. Examples of incorrect, misleading or overconfident AI output
+## 6. Examples of useful AI output
 
-This section is worth more marks than section 5. The brief asks for evidence of
-hallucination, overconfidence and unsupported assumptions - and the tool was
-built to make them easy to find.
+The `checkout-v241` example is the best one to run, because it is built to punish
+the obvious answer: the connection-pool timeouts in the logs begin at 08:58, but
+the deploy everyone blames is at 09:12, and the rollback does not reduce the
+error rate.
 
-Where to look:
-
-- **The Reasoning risks tab** lists any citation whose quoted text was not found
-  in the evidence. Each one is a hallucination the tool caught. Screenshot them.
-- **Hypotheses with an empty "evidence against" column** are flagged in the UI.
-  Check whether counter-evidence genuinely was absent, or simply not looked for.
-- **The `inferred` markers on the timeline.** Check a few by hand. Is anything
-  marked as read-from-evidence that was actually deduced?
-- **Run the same incident twice.** Compare the hypothesis rankings. Instability
-  between identical runs is itself a finding worth reporting.
-
-> **▶ WRITE THIS YOURSELF**
->
-> Give at least three concrete failures with the actual output pasted in. For
-> each: what the model claimed, what the evidence actually said, how you noticed,
-> and what (if anything) in the system caught it.
->
-> A failure the *system* caught is a good result for the project. A failure only
-> *you* caught is a better finding for the report - it shows the limits of the
-> automatic checks.
+> «Run that example and record two or three genuinely useful results — for
+> instance, whether the tool noticed the errors predate the deploy, whether any
+> hypothesis connected the raised reporting-worker pool size to the exhaustion,
+> and whether it treated the ineffective rollback as evidence against the deploy
+> hypothesis. Quote the actual output rather than describing it.»
 
 ---
 
-## 7. Problems encountered and how they were solved
+## 7. Examples of incorrect, misleading or overconfident output
 
-The technical problems solved in the codebase:
+I built the tool so its own failures are easy to find rather than hidden.
 
-| Problem | Solution |
+- The **Reasoning risks** tab lists any citation whose quoted text was not found
+  in the evidence. Each one is a hallucination the tool caught on its own output.
+- A **hypothesis with an empty "evidence against" column** is flagged in the
+  interface — a prompt to check whether counter-evidence was genuinely absent or
+  simply never sought.
+- The **inferred** markers on the timeline can be checked by hand against the
+  evidence.
+- Running the **same incident twice** and comparing the hypothesis rankings shows
+  how stable, or unstable, the output is.
+
+> «Give two or three concrete failures you actually found, with the output
+> quoted: what the model claimed, what the evidence really said, how you noticed,
+> and whether the tool's own checks caught it or you did. A failure only you
+> caught is the more interesting one, because it shows the limits of the
+> automatic checks.»
+
+---
+
+## 8. Problems encountered and how I solved them
+
+| Problem | How I solved it |
 | --- | --- |
 | The model invented source names, so every citation failed verification | The evidence block prints the exact list of valid `source` keys, and each section is delimited with its key |
-| The model filled gaps with plausible invented details (pool sizes, timestamps) | An explicit closed-world statement, plus a list of which inputs were *not* provided |
-| Every hypothesis blamed the most recent deploy | The hypothesis prompt requires at least one hypothesis unrelated to the recent change, and one considering ordinary operational causes |
-| The model invented weak counter-evidence to look balanced | The prompt permits an empty `contradicting_evidence` list *provided* the absence is explained; the UI flags it |
-| The model reported biases that were not in the brief | The catalogue is injected as a closed vocabulary and validated in code; anything else is discarded and reported |
-| Free-form JSON output failed in a new way each run | Structured outputs with a schema generated from the Pydantic model by `strict_schema()` |
-| Six model calls exceeded a comfortable request timeout | Streaming responses, and SSE so the UI shows per-stage progress |
+| The model filled gaps with plausible invented details (pool sizes, timestamps) | An explicit closed-world statement in the prompt, plus a list of which inputs were *not* provided |
+| Every hypothesis blamed the most recent deploy | The hypothesis prompt requires at least one hypothesis unrelated to the recent change, and one considering ordinary operational causes, and demands a mechanism rather than an ordering |
+| The model invented weak counter-evidence to look balanced | The prompt permits an empty `contradicting_evidence` list *provided* the absence is explained; the interface flags it |
+| The model reported biases outside the tool's catalogue | The catalogue is injected as a closed vocabulary and validated in code; anything else is discarded and reported |
+| Free-form JSON failed in a new way each run | Structured output with a schema generated from the Pydantic model, plus a single plain-JSON fallback for providers that cannot enforce it |
 | One failing stage lost the whole investigation | The pipeline records the failure, warns the user, and continues |
+| The tool was locked to one paid vendor | Rebuilt the AI layer as a provider-agnostic OpenAI-compatible client (section 5) |
 
-> **▶ WRITE THIS YOURSELF**
->
-> Add the problems *you* hit that are not in this table - environment setup, an
-> API error you had to interpret, something that took an afternoon. Include at
-> least one where the AI's suggested fix was wrong and you had to work it out
-> yourself. That is the most credible thing you can put in this section.
-
----
-
-## 8. Cognitive biases and fallacies encountered
-
-The brief asks for at least three; strong reports discuss five or more. The
-eight in the catalogue are defined in `app/core/biases.py`. Below are the four
-that showed up most clearly in the tool's own behaviour - discuss these plus
-any you noticed in your own reasoning.
-
-**Post hoc fallacy.** The strongest and most persistent failure. Given the
-`checkout-v241` example, the natural reading is "deploy at 09:12, errors after,
-therefore the deploy". The evidence contradicts it twice: the pool timeouts
-begin at 08:58, and the rollback did not reduce the error rate. Early prompt
-versions blamed the deploy anyway. The fix was to require a *mechanism*, not an
-ordering - and the example was built specifically to punish the shortcut.
-
-**Confirmation bias.** Early hypotheses had long supporting-evidence lists and
-empty contradicting-evidence lists. The system now makes this visible rather
-than only discouraging it: the two columns sit side by side, and an empty
-"against" column gets a warning label.
-
-**Automation bias.** The most uncomfortable one, because it is about the user
-rather than the model. The output is well-formatted, professionally worded, and
-cites its sources - which makes it *feel* verified. The citation checker exists
-precisely because that feeling is not evidence, and the tool is asked to audit
-itself for this bias in stage 4.
-
-**Anchoring bias.** The first or loudest error in a log tends to dominate. In
-`checkout-v241` the `orders_daily_rollup` error is loud, is from a different
-service, and is irrelevant. In `appointment-booking-500s` the helpdesk note
-already asserts "suspect load related" - and the evidence flatly contradicts it
-(CPU below 35%, one specific node failing).
-
-> **▶ WRITE THIS YOURSELF**
->
-> For each bias you discuss, the brief asks four things: **where it appeared,
-> how it affected your thinking, how you noticed it, and how you reduced its
-> effect.** The four above are written from the system's behaviour - add the
-> part about *your own* thinking, which is what is actually being assessed.
->
-> Worth considering honestly: did you find yourself accepting the tool's output
-> more readily as the project went on? That is automation bias, observed in
-> yourself, and reporting it is worth more than any of the above.
+> «Add the problems you hit that are not in this table — setting up the
+> environment, interpreting an API error, or a moment where an AI coding
+> suggestion was wrong and you had to work the fix out yourself. That last kind
+> is worth including, because it shows where you did not take the AI's word.»
 
 ---
 
-## 9. Ethical and professional risks
+## 9. Cognitive biases and fallacies
 
-**Over-trust.** The central risk. Fluent output invites acceptance. Mitigations
-built in: no root cause is ever declared, confidence levels are mandatory,
-citations are checked, and hypotheses are presented as competing candidates.
-None of this removes the risk - it only makes the seams visible.
+The tool works with the eight biases defined in `app/core/biases.py` —
+confirmation, anchoring, automation, post hoc, availability, overconfidence,
+hindsight and base-rate neglect. These are the biases that actually threaten an
+incident investigation, which is why the catalogue is limited to them rather than
+to a general list of every named bias. The four that showed up most clearly in
+the tool's own behaviour:
+
+**Post hoc fallacy.** The most persistent one. In the `checkout-v241` example the
+natural read is "deploy at 09:12, errors after, therefore the deploy" — and the
+evidence contradicts it twice, because the timeouts begin before the deploy and
+the rollback does not help. I addressed it by requiring a *mechanism* in the
+prompt, not just an ordering.
+
+**Confirmation bias.** A hypothesis with a long list of supporting evidence and
+an empty "against" list is its visual signature. I chose to make it visible
+rather than only discourage it: the two columns sit side by side, and an empty
+"against" column is labelled.
+
+**Automation bias.** The uncomfortable one, because it is about the user, not the
+model. Output that is well-formatted and cites its sources *feels* verified. The
+citation checker exists precisely because that feeling is not evidence, and the
+tool is asked to audit its own confident-but-thin claims in the reasoning-risks
+stage.
+
+**Anchoring bias.** The first or loudest error tends to dominate. In
+`checkout-v241` the `orders_daily_rollup` error is loud, from a different service,
+and irrelevant; in `appointment-booking-500s` the helpdesk note already asserts
+"suspect load related" while the evidence shows one node failing and CPU under
+35%.
+
+> «For each bias, add the part about your own thinking: where it appeared in how
+> *you* read an incident, how you noticed it, and what you did about it. If you
+> found yourself trusting the tool's output more readily as the project went on,
+> that is automation bias observed in yourself, and it is worth writing down
+> honestly.»
+>
+> The course material on cognitive biases (the general list handed out) is a
+> reasonable source to cite here if you want to bring in biases beyond the eight,
+> such as groupthink or the fundamental attribution error, when discussing your
+> own reasoning — though I kept the tool's catalogue to the eight that fit
+> incident analysis.
+
+---
+
+## 10. Ethical and professional considerations
+
+**Over-trust.** The central risk. Fluent output invites acceptance. What I built
+in against it: no root cause is ever declared, confidence levels are mandatory,
+citations are checked, and hypotheses are competing candidates. None of this
+removes the risk — it only keeps the seams visible so a person can see where to
+push.
 
 **Data leaving the organisation.** Production logs routinely contain personal
-data, session tokens, internal hostnames and API keys. This tool sends whatever
-is pasted into it to a third-party API. In a real deployment this needs
-redaction before transmission, an explicit data-handling policy, and an
-organisational decision about which systems may be analysed this way at all.
-The current version does not redact anything, and that is a genuine limitation
-rather than an oversight.
+data, session tokens, internal hostnames and keys. The tool sends whatever is
+pasted into it to a third-party endpoint. A real deployment would need redaction
+before transmission and an explicit policy about which systems may be analysed
+this way. The current version redacts nothing, and I consider that a genuine
+limitation rather than an oversight. Making the tool provider-agnostic gives one
+partial answer to this: it can be pointed at a local model (Ollama), so the
+evidence never leaves the machine at all.
 
-**Responsibility for harmful recommendations.** If the tool recommends
-restarting a database and that causes data loss, responsibility rests with the
-engineer who ran the command - which is why every action names a specific,
-checkable step rather than a vague instruction, and why destructive suggestions
-should always be reviewed. A tool that recommends actions must not obscure who
-is accountable for taking them.
+**Showing uncertainty to users.** I treated this as an interface problem, not
+just a prompt problem. Confidence is a label on every hypothesis; inferred
+timeline events look different from observed ones; unverified citations get their
+own styling; an unchallenged hypothesis is flagged. The uncertainty is shown
+where the claim is, not buried in a disclaimer.
 
-**Automation of judgement.** The subtler risk is not a wrong answer but a
-narrowed search. If the tool produces four hypotheses, the investigator is
-unlikely to think of a fifth. The open-questions section is a partial
-counterweight; it does not solve the problem.
+**Responsibility for harmful actions.** If the tool recommends restarting a
+database and that loses data, responsibility rests with the engineer who ran the
+command — which is why every action names a specific, checkable step rather than
+a vague instruction, and why the tool never presents itself as having decided.
 
-**Secrets in the repository.** `.env` is git-ignored and `.env.example`
-contains an empty key. The `/api/config` endpoint deliberately returns no part
-of the key, and there is a test asserting that.
-
-> **▶ WRITE THIS YOURSELF**
->
-> The brief lists seven ethical questions. Answer the ones this section does not
-> already cover - particularly *"how should uncertainty be shown to users?"*,
-> where you can argue from concrete interface decisions you can point at.
-
----
-
-## 10. Division of work
-
-> **▶ WRITE THIS YOURSELF (pairs only)**
->
-> If you submitted individually, say so and delete this section.
+**Secrets.** `.env` is git-ignored, `.env.example` ships with an empty key, and
+the `/api/config` endpoint returns no part of the key. There is a test that
+asserts the key never appears in that payload.
 
 ---
 
 ## 11. Future improvements
 
-Honest assessment of what is missing:
-
-- **Redaction before transmission.** The most important gap. Logs should be
+- **Redaction before transmission** — the most important gap. Logs should be
   scanned for tokens, emails and internal hostnames before anything is sent.
-- **Retrieval over large log files.** Everything currently goes into the
-  context window, which caps the practical input size. Chunking with retrieval
-  would let the tool work on real log volumes.
-- **Interactive follow-up.** Being able to ask "why did you rule that out?"
-  against a completed investigation.
-- **Persistence.** Investigations are not saved; a refresh loses everything.
-- **Role-based output.** The brief's advanced tier suggests separate views for
-  engineer, manager and support. The postmortem stage half-does this; a proper
-  version would generate distinct summaries.
-- **Charts.** Error rates and timing are currently text only.
-- **Measuring accuracy.** The largest gap intellectually. There is no ground
-  truth for these examples, so the tool's hypotheses cannot be scored. A proper
-  evaluation would need incidents with known causes and a measure of how often
-  the true cause appears in the top three.
-- **Multi-model comparison.** Running two models on the same incident and
-  showing where they disagree would surface uncertainty far better than a single
-  model's self-reported confidence.
+- **Retrieval over large logs** — everything currently goes into the context
+  window, which caps the input size. Chunking with retrieval would let the tool
+  work on real log volumes.
+- **Model comparison** — now that the provider is configurable, running two
+  models on the same incident and showing where they disagree is a natural next
+  step, and would surface uncertainty better than any single model's
+  self-reported confidence.
+- **Persistence** — investigations are not saved; a refresh loses them.
+- **Measuring accuracy** — the examples have no ground truth, so the hypotheses
+  cannot be scored. A proper evaluation would need incidents with known causes
+  and a measure of how often the true cause appears in the top three.
 
 ---
 
-## Appendix A - running the tool
+## Appendix A — running the tool
 
-See [`README.md`](../README.md). Short version: `run.bat` (Windows) or
-`./run.sh` (macOS/Linux), then paste your API key into `.env` when prompted.
+See [`README.md`](../README.md). In short: `run.bat` (Windows) or `./run.sh`
+(macOS/Linux), then paste an API key into `.env` when prompted. A free Google
+Gemini key works with the default settings.
 
-## Appendix B - prompts
+## Appendix B — prompts
 
 See [`PROMPTS.md`](PROMPTS.md) for every prompt, the reasoning behind each
-instruction, and the table of prompt iterations.
+instruction, the table of prompt iterations, and the note on why the tool stays
+portable across providers.

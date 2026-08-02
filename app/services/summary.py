@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from app.ai import prompts
-from app.ai.client import ClaudeClient
+from app.ai.client import AIClient
 from app.schemas import SummaryResult
 
 STAGE = "summary"
 
 
-def run(client: ClaudeClient, evidence_block: str) -> SummaryResult:
+def run(client: AIClient, evidence_block: str) -> SummaryResult:
     return client.complete_structured(
         stage=STAGE,
         system_prompt=prompts.SYSTEM_PROMPT,

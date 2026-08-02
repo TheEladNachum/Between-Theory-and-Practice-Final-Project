@@ -29,9 +29,12 @@ def test_health():
 
 def test_config_never_leaks_the_key():
     body = client.get("/api/config").json()
-    assert set(body) == {"configured", "model", "effort", "version"}
-    assert "anthropic_api_key" not in json.dumps(body).lower()
-    assert "sk-ant" not in json.dumps(body)
+    assert set(body) == {"configured", "provider", "model", "version"}
+    # No form of the key, or the field that holds it, may appear in the payload.
+    dumped = json.dumps(body).lower()
+    assert "ai_api_key" not in dumped
+    assert "api_key" not in dumped
+    assert "sk-" not in dumped
 
 
 def test_index_is_served():

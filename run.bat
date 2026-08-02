@@ -54,20 +54,28 @@ if not exist ".env" (
     echo.
     echo   [!] A .env file has been created for you.
     echo.
-    echo       Open .env in a text editor and paste your Anthropic API key
-    echo       after ANTHROPIC_API_KEY=  then run this file again.
+    echo       Open .env and paste your API key after AI_API_KEY=  then run
+    echo       this file again.
     echo.
-    echo       Get a key at https://console.anthropic.com/settings/keys
+    echo       Get a FREE Google Gemini key at https://aistudio.google.com/apikey
+    echo       ^(the default settings use Gemini^). Other providers - Groq,
+    echo       OpenRouter, a local Ollama model, OpenAI - are listed in .env.
     echo.
     notepad ".env"
     pause
     exit /b 0
 )
 
-findstr /b /c:"ANTHROPIC_API_KEY=" ".env" | findstr /r /c:"=.\+" >nul
-if errorlevel 1 (
+REM Read AI_API_KEY out of .env. `eol=#` skips comment lines; splitting on "="
+REM gives the key name in %%A and its value in %%B. Works with either Windows
+REM or Unix line endings, unlike a findstr regex.
+set "_HASKEY="
+for /f "usebackq eol=# tokens=1,* delims==" %%A in (".env") do (
+    if /i "%%~A"=="AI_API_KEY" set "_HASKEY=%%~B"
+)
+if not defined _HASKEY (
     echo.
-    echo   [!] ANTHROPIC_API_KEY is still empty in .env
+    echo   [!] AI_API_KEY is still empty in .env
     echo       Paste your key after the = sign, save, and run this file again.
     echo.
     notepad ".env"
