@@ -14,7 +14,7 @@ const PROVIDERS = {
   gemini: {
     host: 'generativelanguage.googleapis.com',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview',
   },
   groq: {
     host: 'api.groq.com',

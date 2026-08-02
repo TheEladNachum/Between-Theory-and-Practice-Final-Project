@@ -181,10 +181,40 @@ def test_bias_name_is_normalised_to_the_catalogue():
 # --- hypothesis ranking -----------------------------------------------------
 
 
-def test_unexamined_hypothesis_is_demoted_below_an_examined_one():
-    """A high-confidence claim nobody argued against should not outrank a
-    medium-confidence one that was actually challenged... but confidence still
-    dominates, so here the high-confidence one leads. This pins the rule."""
+def test_contradicted_high_confidence_is_capped_and_ranked_as_examined():
+    """Human review made counter-evidence an enforceable ceiling, not advice."""
     result = run(StubClient())
     assert result["hypotheses"][0]["title"] == "Deploy broke it"
-    assert result["hypotheses"][0]["confidence"] == "high"
+    assert result["hypotheses"][0]["confidence"] == "medium"
+    assert "Human-review safeguard" in result["hypotheses"][0]["confidence_reason"]
+
+
+def test_pipeline_applies_reasoning_audit_confidence_ceiling():
+    class ConfidenceAuditClient(StubClient):
+        def complete_structured(self, *, stage: str, **kwargs: Any):
+            if stage == "reasoning_risks":
+                self.calls.append(stage)
+                return ReasoningRisksResult(
+                    risks=[
+                        {
+                            "bias_id": "overconfidence_bias",
+                            "bias_name": "Overconfidence bias",
+                            "where_it_appears": "Deploy broke it remains untested.",
+                            "why_it_matters": "The mitigation may target the wrong cause.",
+                            "mitigation": "Test the mechanism before acting.",
+                            "linked_hypothesis": "Deploy broke it",
+                            "confidence_ceiling": "low",
+                        }
+                    ]
+                )
+            return super().complete_structured(stage=stage, **kwargs)
+
+    result = run(ConfidenceAuditClient())
+    deploy = next(
+        hypothesis
+        for hypothesis in result["hypotheses"]
+        if hypothesis["title"] == "Deploy broke it"
+    )
+
+    assert deploy["confidence"] == "low"
+    assert any("lowered from medium to low" in warning for warning in result["warnings"])

@@ -33,7 +33,7 @@ applies and harmless where it does not.
 ## 2. The system prompt
 
 Shared by every stage, so the same standard applies everywhere rather than only
-where it was convenient to write it down. It carries four rules.
+where it was convenient to write it down. It carries five rules.
 
 **Rule 1 - separate the layers.** Defines fact, assumption, hypothesis and
 action, and forbids one masquerading as another. This is enforced structurally
@@ -53,6 +53,11 @@ point.
 
 **Rule 4 - do not resolve uncertainty you have not earned.** Bans "the root
 cause is". Requires a confidence level plus what would change it.
+
+**Rule 5 - do not invent calendar relationships.** Dates, times, and weekday
+labels must be copied from evidence. The model may not turn "Monday" into a
+calendar date or combine fragments into a new timestamp. Commit 12 added this
+rule after the creator manually found an incorrect date in a complete export.
 
 The closing constraints target specific failure modes the brief names:
 post hoc reasoning, anchoring on the loudest error, and base-rate neglect.
@@ -104,6 +109,11 @@ The closing line - *"Being marked inferred is not a flaw; hiding that something
 was inferred is"* - was added after the model began dropping uncertain events
 entirely rather than marking them.
 
+Commit 12 adds a deterministic check after generation: a non-`unknown`
+timestamp is retained only when it appears in one of that event's verbatim
+citations. Otherwise it becomes `unknown` and the event is marked inferred.
+This makes the prompt a first defence and code validation the second.
+
 ### Stage 3 - hypotheses
 
 The most heavily constrained instruction, because this is where the reasoning
@@ -126,6 +136,11 @@ an honest empty list because it looks like rigour.
 `recommended_test` must be able to come out either way. Without that clause the
 model proposed tests that could only confirm.
 
+High confidence now has a mechanical ceiling as well as a prompt rule. It is
+reduced to medium if fewer than two distinct supporting citations exist or if
+any contradicting evidence remains. The validator can lower confidence but can
+never raise it.
+
 ### Stage 4 - reasoning risks
 
 Built at runtime from [`app/core/biases.py`](../app/core/biases.py) by
@@ -141,6 +156,13 @@ gap in this investigation forced it to do the work.
 The last line makes the model audit its own output for automation bias. It is
 the only place the tool is asked to be suspicious of itself.
 
+Commit 12 also gives each risk an optional exact `linked_hypothesis` and
+`confidence_ceiling`. When the audit says a hypothesis deserves no more than
+medium confidence, the pipeline applies that ceiling to the hypothesis itself,
+records a warning, and passes the corrected value to later stages. This removes
+the earlier possibility of a high-confidence hypothesis beside a risk that
+quietly recommended medium.
+
 ### Stage 5 - actions and open questions
 
 *"Reject anything that would be equally true of any incident"* plus the named
@@ -152,6 +174,13 @@ The open-questions section closes with *"if it is empty, you have almost
 certainly overreached somewhere above"* - the same expectation-setting trick
 used for assumptions in stage 1, and it works the same way.
 
+The instruction now separates an action from its predicted outcome and forbids
+unsupported promises such as "will immediately resolve". A small deterministic
+safeguard tempers common certainty phrases and requires verification against the
+incident's failure metric. This directly addresses an action that promised an
+exact resolution despite an unexplained mismatch between traffic share and the
+observed failure rate.
+
 ### Stage 6 - postmortem
 
 Prescribes the section list exactly, so output is comparable between runs and
@@ -159,6 +188,10 @@ between incidents. Two global rules: do not declare a root cause found, and do
 not introduce any fact that is not in the material above. The second exists
 because the postmortem stage sees the most context and was the stage most prone
 to inventing a tidy detail to round out a sentence.
+
+The final stage is also told that the latest structured context is canonical:
+it may not raise a confidence above an applied risk ceiling or turn a qualified
+expected effect back into a guaranteed outcome.
 
 ---
 
@@ -174,6 +207,9 @@ to inventing a tidy detail to round out a sentence.
 | Broaden the definition of `inferred` | Deduced orderings presented as read from data | Inference is visible |
 | Inject the bias catalogue as a closed vocabulary | Model reported biases not in the brief | Only the eight, ids validated in code |
 | Require risks to point at a specific hypothesis | Textbook definitions restated | Findings specific to the run |
+| Forbid derived calendar relationships and validate cited timestamps | A fluent export mapped a weekday to the wrong date | Unsupported dates become explicit unknowns instead of chronology |
+| Enforce confidence ceilings across stages | A hypothesis stayed high while its own risk audit recommended medium | The audit can only lower confidence, and later stages receive the correction |
+| Calibrate and verify action outcomes | A mitigation was said to "immediately resolve" an exact rate despite conflicting figures | The outcome is qualified and tied to a measurable check |
 
 ---
 
@@ -184,7 +220,7 @@ Nothing here is tied to a particular provider.
 
 | Setting | Value | Why |
 | --- | --- | --- |
-| Endpoint / model | `AI_BASE_URL` / `AI_MODEL` | Set in `.env`. The default is Google Gemini (`gemini-2.5-flash`), which has a free tier. Groq, OpenRouter, a local Ollama model, OpenAI and Anthropic are one uncommented block away. |
+| Endpoint / model | `AI_BASE_URL` / `AI_MODEL` | Set in `.env`. Commit 12 defaults to Google Gemini (`gemini-3-flash-preview`), the model verified during the creator's manual run. Groq, OpenRouter, a local Ollama model, OpenAI and Anthropic remain configurable. |
 | Output | structured JSON | The request first asks for the provider's formal `json_schema` response format, generated from the Pydantic model by `strict_schema()`, so the contract cannot drift from the parsing code. |
 | Fallback | plain JSON object | If a provider cannot enforce the schema, the client retries once in `json_object` mode with the schema described in the prompt (`schema_hint()`). Either way the output is validated by `parse_into()`. |
 | Streaming | on | The response is streamed and reassembled, so a slow provider does not trip a single-request timeout. |
@@ -204,11 +240,11 @@ that has quietly blurred a guess into a fact. The shape is the discipline.
 
 ## 7. Provider portability and the prompts
 
-Making the tool provider-agnostic did **not** require changing a single prompt.
+Making the tool provider-agnostic does not require provider-specific prompts.
 Every instruction in `app/ai/prompts.py` is written in plain language about
-evidence, citation and uncertainty - none of it depends on a vendor-specific
-feature. That is why the same prompts run unchanged against Gemini, Groq, a
-local model, or any other OpenAI-compatible endpoint.
+evidence, citation and uncertainty. Commit 12 changed those shared prompts to
+encode lessons from human review, and the same revised contract still runs
+against Gemini, Groq, a local model, or any other OpenAI-compatible endpoint.
 
 The one provider-shaped concern - that not every endpoint can enforce a formal
 JSON schema - is handled in the client, not the prompts, by the fallback in

@@ -152,10 +152,10 @@ def configure_document(doc: Document) -> None:
     section = doc.sections[0]
     section.page_width = Inches(8.5)
     section.page_height = Inches(11)
-    section.top_margin = Inches(1)
-    section.right_margin = Inches(1)
-    section.bottom_margin = Inches(1)
-    section.left_margin = Inches(1)
+    section.top_margin = Inches(0.8)
+    section.right_margin = Inches(0.85)
+    section.bottom_margin = Inches(0.8)
+    section.left_margin = Inches(0.85)
     section.header_distance = Inches(0.492)
     section.footer_distance = Inches(0.492)
     section.different_first_page_header_footer = True
@@ -165,18 +165,18 @@ def configure_document(doc: Document) -> None:
     normal.font.name = BODY_FONT
     normal._element.rPr.rFonts.set(qn("w:ascii"), BODY_FONT)
     normal._element.rPr.rFonts.set(qn("w:hAnsi"), BODY_FONT)
-    normal.font.size = Pt(11)
+    normal.font.size = Pt(10.5)
     normal.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     normal.paragraph_format.space_before = Pt(0)
     # Named academic-report override: compact the narrative preset slightly so
     # the complete submission remains within the brief's 5-10 page target.
-    normal.paragraph_format.space_after = Pt(6)
-    normal.paragraph_format.line_spacing = 1.25
+    normal.paragraph_format.space_after = Pt(4.5)
+    normal.paragraph_format.line_spacing = 1.15
 
     heading_tokens = {
-        "Heading 1": (16, BLUE, 16, 8),
-        "Heading 2": (13, BLUE, 12, 6),
-        "Heading 3": (12, DARK_BLUE, 8, 4),
+        "Heading 1": (15, BLUE, 12, 6),
+        "Heading 2": (12.5, BLUE, 9, 5),
+        "Heading 3": (11.5, DARK_BLUE, 7, 3),
     }
     for name, (size, color, before, after) in heading_tokens.items():
         style = styles[name]
@@ -195,12 +195,12 @@ def configure_document(doc: Document) -> None:
         style.font.name = BODY_FONT
         style._element.rPr.rFonts.set(qn("w:ascii"), BODY_FONT)
         style._element.rPr.rFonts.set(qn("w:hAnsi"), BODY_FONT)
-        style.font.size = Pt(11)
+        style.font.size = Pt(10.5)
         style.paragraph_format.left_indent = Inches(0.375)
         style.paragraph_format.first_line_indent = Inches(-0.194)
         style.paragraph_format.space_before = Pt(0)
-        style.paragraph_format.space_after = Pt(4)
-        style.paragraph_format.line_spacing = 1.208
+        style.paragraph_format.space_after = Pt(3)
+        style.paragraph_format.line_spacing = 1.12
 
     header = section.header
     hp = header.paragraphs[0]
@@ -221,7 +221,7 @@ INLINE_PATTERN = re.compile(
 )
 
 
-def add_inline(paragraph, text: str, *, default_size: float = 11) -> None:
+def add_inline(paragraph, text: str, *, default_size: float = 10.5) -> None:
     position = 0
     for match in INLINE_PATTERN.finditer(text):
         if match.start() > position:
@@ -285,7 +285,7 @@ def add_cover(doc: Document) -> None:
     meta = doc.add_paragraph()
     meta.alignment = WD_ALIGN_PARAGRAPH.CENTER
     meta.paragraph_format.space_after = Pt(4)
-    set_run_font(meta.add_run("Development record: commits 1-11"), size=11, color=NAVY, bold=True)
+    set_run_font(meta.add_run("Development record: commits 1-12"), size=11, color=NAVY, bold=True)
     meta2 = doc.add_paragraph()
     meta2.alignment = WD_ALIGN_PARAGRAPH.CENTER
     set_run_font(meta2.add_run("Evidence-first design | Human judgment remains in control"), size=10, color=GRAY)
@@ -401,7 +401,11 @@ def render_markdown(doc: Document, markdown: str) -> None:
                 continue
             style = {1: "Heading 1", 2: "Heading 1", 3: "Heading 2", 4: "Heading 3"}[len(hashes)]
             paragraph = doc.add_paragraph(style=style)
-            add_inline(paragraph, text, default_size={"Heading 1": 16, "Heading 2": 13, "Heading 3": 12}[style])
+            add_inline(
+                paragraph,
+                text,
+                default_size={"Heading 1": 15, "Heading 2": 12.5, "Heading 3": 11.5}[style],
+            )
             index += 1
             continue
 

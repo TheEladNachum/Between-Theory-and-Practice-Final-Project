@@ -43,8 +43,34 @@ def run(
         schema_model=HypothesesResult,
     )
 
+    _enforce_confidence_evidence_threshold(result)
     result.hypotheses.sort(key=_ranking_key)
     return result
+
+
+def _enforce_confidence_evidence_threshold(result: HypothesesResult) -> None:
+    """Conservatively cap `high` confidence when its evidence fails the rule.
+
+    Code may lower confidence for safety, but it never raises it.  This keeps
+    the displayed confidence consistent with the evidence standard even when
+    a model ignores the prompt.
+    """
+    for hypothesis in result.hypotheses:
+        support = {(ref.source, ref.quote) for ref in hypothesis.supporting_evidence}
+        reasons = []
+        if len(support) < 2:
+            reasons.append("fewer than two distinct supporting citations")
+        if hypothesis.contradicting_evidence:
+            reasons.append("contradicting evidence remains")
+
+        if hypothesis.confidence == Confidence.HIGH and reasons:
+            hypothesis.confidence = Confidence.MEDIUM
+            hypothesis.confidence_reason = (
+                hypothesis.confidence_reason.rstrip()
+                + " Human-review safeguard: confidence is capped at medium because "
+                + " and ".join(reasons)
+                + "."
+            )
 
 
 def _ranking_key(hypothesis) -> tuple[int, int]:

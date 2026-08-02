@@ -41,6 +41,12 @@ if [ ! -f ".env" ]; then
 fi
 
 echo "  [3/4] Local configuration ready."
+
+# Refuse to open an older server that is already listening on the same port.
+if ! .venv/bin/python -m app.portcheck --host 127.0.0.1 --port 8000; then
+    exit 1
+fi
+
 echo "  [4/4] Starting the server..."
 echo
 echo "  -------------------------------------------------------------"
@@ -54,9 +60,9 @@ echo
 (
     sleep 4
     if command -v open >/dev/null; then
-        open http://127.0.0.1:8000
+        open 'http://127.0.0.1:8000/?commit=12'
     elif command -v xdg-open >/dev/null; then
-        xdg-open http://127.0.0.1:8000
+        xdg-open 'http://127.0.0.1:8000/?commit=12'
     fi
 ) >/dev/null 2>&1 &
 

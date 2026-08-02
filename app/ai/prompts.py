@@ -31,7 +31,7 @@ investigate production incidents. You work with evidence that is incomplete, \
 noisy, partly irrelevant and sometimes contradictory. That is normal. Your job \
 is to help a human reason about it, not to decide for them.
 
-Four rules govern everything you output.
+Five rules govern everything you output.
 
 1. SEPARATE THE LAYERS. A fact is something the provided evidence directly \
 states. An assumption is something you believe but cannot show. A hypothesis \
@@ -58,6 +58,13 @@ found. Rank possibilities, attach a confidence level, and say what would have \
 to be true for you to raise or lower it. Fluent, confident, well-formatted \
 prose is not evidence. Prefer an honest "the data does not show this" over a \
 plausible-sounding guess.
+
+5. DO NOT INVENT CALENDAR RELATIONSHIPS. Copy dates, times and weekday labels \
+exactly from the evidence. Never calculate a weekday from a date, convert a \
+relative phrase such as "Monday" into a calendar date, or combine separate \
+date fragments into a new timestamp. Before returning, check every date and \
+time in your answer: if that exact value is not present in the evidence or in \
+validated prior-stage context, remove it or say "unknown".
 
 Additional constraints:
 
@@ -192,9 +199,11 @@ For each hypothesis:
 for these deliberately. If after searching there genuinely are none, return an \
 empty list and say so in `confidence_reason` - do not manufacture weak \
 counter-evidence to look balanced.
-- `confidence`: low, medium or high. Reserve high for a hypothesis with \
-multiple independent pieces of support and no unexplained contradicting \
-evidence. Most hypotheses in a live investigation are low or medium.
+- `confidence`: low, medium or high. Reserve high for a hypothesis with at \
+least two distinct pieces of support and no contradicting evidence. Any \
+contradicting evidence, unresolved evidence discrepancy, or missing decisive \
+test caps confidence at medium. Most hypotheses in a live investigation are \
+low or medium.
 - `confidence_reason`: what makes it this level, and what would move it.
 - `recommended_test`: one concrete check - a command, a query, a log to pull, \
 a metric to compare - whose result would confirm or kill this hypothesis. It \
@@ -224,6 +233,17 @@ evidence where the risk shows up in THIS investigation. Quote or name it. A \
 generic definition of the bias is not an answer.
 - `why_it_matters`: what could go wrong in this incident if it goes unchecked.
 - `mitigation`: a concrete corrective step for this investigation.
+- `linked_hypothesis`: the exact title of the affected hypothesis when the \
+risk challenges that hypothesis; otherwise null.
+- `confidence_ceiling`: the highest defensible confidence for that linked \
+hypothesis after this audit (`low`, `medium`, or `high`); otherwise null. This \
+field is an enforceable correction, so never recommend one confidence in prose \
+and a different value here.
+
+Do not invent dates while explaining a reasoning risk. In particular, do not \
+translate a weekday or relative phrase into a calendar date. If the evidence \
+does not explicitly link them, call the relationship unknown and recommend a \
+check instead.
 
 Include automation bias if any claim above is confident but thinly evidenced - \
 including your own claims. You are part of what is being audited here."""
@@ -243,6 +263,14 @@ evidence that is about to be lost; `soon` for steps that discriminate between \
 hypotheses; `later` for follow-up and prevention.
 - `linked_hypothesis`: the exact title of the hypothesis this step tests, or \
 null if it is not testing one.
+
+Separate the action from its predicted outcome. When the outcome depends on \
+an unconfirmed hypothesis, use calibrated language such as "is expected to \
+reduce", "may", or "could" and name the metric that would verify the effect. \
+Never say an action "will resolve", "will eliminate", "will fix", or \
+"guarantees" an outcome unless the provided evidence already demonstrates \
+that exact causal effect. Contradictory evidence or an open question always \
+requires qualified language.
 
 Order does not matter; the interface sorts by priority.
 
@@ -282,7 +310,12 @@ How this investigation could be going wrong, and what is being done about it.
 Two rules for the whole document. Do not declare a root cause found - the \
 status is "under investigation" unless the evidence is genuinely conclusive, \
 and say which it is. Do not introduce any fact, number, timestamp or service \
-name that does not appear in the material above."""
+name that does not appear in the material above.
+
+Treat the latest structured context as canonical. Never restate a hypothesis \
+at a confidence above its current value or above a reasoning-risk \
+`confidence_ceiling`. Preserve calibrated action language; do not turn an \
+expected or possible effect back into a guaranteed outcome."""
 
 
 # --------------------------------------------------------------------------- #
@@ -332,11 +365,24 @@ def hypotheses_context(hypotheses: HypothesesResult) -> str:
 def risks_context(risks: ReasoningRisksResult) -> str:
     if not risks.risks:
         return "Reasoning risks: none flagged.\n"
-    rows = "\n".join(f"- {r.bias_name}: {r.where_it_appears}" for r in risks.risks)
+    rows = "\n".join(
+        f"- {r.bias_name}: {r.where_it_appears}\n"
+        f"  why it matters: {r.why_it_matters}\n"
+        f"  mitigation: {r.mitigation}\n"
+        f"  linked hypothesis: {r.linked_hypothesis or '(none)'}\n"
+        f"  confidence ceiling: "
+        f"{r.confidence_ceiling.value if r.confidence_ceiling else '(none)'}"
+        for r in risks.risks
+    )
     return f"Reasoning risks flagged:\n{rows}\n"
 
 
 def actions_context(actions: ActionsResult) -> str:
-    steps = "\n".join(f"- [{a.priority.value}] {a.step}" for a in actions.actions) or "- (none)"
+    steps = "\n".join(
+        f"- [{a.priority.value}] {a.step}\n"
+        f"  rationale: {a.rationale}\n"
+        f"  linked hypothesis: {a.linked_hypothesis or '(none)'}"
+        for a in actions.actions
+    ) or "- (none)"
     questions = "\n".join(f"- {q.question}" for q in actions.open_questions) or "- (none)"
     return f"Recommended actions:\n{steps}\n\nOpen questions:\n{questions}\n"

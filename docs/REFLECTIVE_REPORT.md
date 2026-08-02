@@ -71,7 +71,25 @@ One subtle technical issue was the settings cache. `get_settings()` uses `lru_ca
 
 This transition required careful, intelligent use of AI tools. I did not accept the first suggestion to add more launch-time checks, because the simpler behavior was to remove the blocking check and let the interface explain state. I asked specifically when `.env` should be created, what the browser can see, whether saving a key exposes it, and why a saved value might not take effect. I also reduced scope where a proposed protection could create last-minute bugs without addressing the immediate coursework need. The result is a smaller and more coherent commit: launch immediately, configure locally, refresh cached settings, and validate the actual connection.
 
-## 7. Useful and misleading AI assistance
+## 7. Critical change from Commit 11 to Commit 12
+
+Commit 11 made it possible to configure and verify the provider, but a green connection indicator did not prove that the investigation itself was reliable. I therefore performed the next check as the creator of the project, not merely as a user waiting for a successful screen. I ran the complete hospital appointment-booking incident, exported the generated report, and read it against the supplied evidence. This human review was essential because the output was fluent, detailed, and professionally formatted. Those qualities made its defects easier to overlook, not less important.
+
+I found three concrete reasoning failures. First, the AI made a serious chronological error: it associated Monday with 28 October even though the incident evidence placed the relevant Monday on 4 November. That was not a stylistic problem. A wrong date can reverse the apparent order of a rebuild, policy change, and failure, and a false sequence can support a false causal story.
+
+Second, the report contradicted itself about confidence. A leading hypothesis was labelled high confidence, while the reasoning-risks section said that the same hypothesis should be reduced to medium until the node's IP address was verified. Both statements could not be the report's current judgement at the same time. The disagreement showed that generating six individually valid sections is not enough; later critical analysis must be reflected in the confidence communicated elsewhere.
+
+Third, one recommended action claimed that removing `api-2` would immediately resolve the observed 10% failure rate. The evidence did support isolating the only failing node as a sensible mitigation, but it also indicated that this node handled about 25% of traffic. Until the difference between 10% observed failures and 25% traffic share is explained, the certain outcome was stronger than the evidence justified. The responsible wording is that isolation is expected to reduce or contain failures while the discrepancy is investigated, not that it is guaranteed to resolve an exact rate.
+
+These were important findings because the AI had already passed structural validation and produced a complete export. My manual comparison caught semantic errors that JSON schemas and citation-string matching cannot necessarily detect. This is a practical example of **human-in-the-loop** work: the AI proposed an investigation, but I remained responsible for checking dates, cross-section consistency, and the strength of operational claims. It also demonstrates **evidence discipline**, **calibrated confidence**, and **critical evaluation** rather than acceptance based on presentation quality.
+
+Commit 12 addresses the causes systemically instead of editing one exported report. Reusable prompts now forbid constructing calendar relationships that are absent from the evidence, cap high confidence when contradictions or decisive unknowns remain, and require action outcomes to use testable, qualified language. Code-level safeguards remain in place even if a model ignores those instructions: an unsupported timeline timestamp becomes `unknown` and inferred; high confidence is lowered when its evidence does not meet the threshold; a reasoning-risk audit can impose a one-way confidence ceiling on its linked hypothesis; and deterministic promises in action rationales are converted into expectations that must be verified against the incident metric. Regression tests pin these behaviors. The goal is not to force a preferred answer to one example, but to require every future analysis to respect the same reasoning rules.
+
+Practical testing exposed three reliability issues as well. The original default `gemini-2.5-flash` model returned a provider message saying that it was no longer available to new users, while `gemini-3-flash-preview` accepted the connection and completed the analysis. Commit 12 changes that default consistently in the configuration class, environment template, and Gemini browser preset while keeping the model editable. A previous server process occupying port 8000 caused the new launcher to stop with Windows error 10048, while the browser continued to show the old server. Commit 12 therefore performs a port preflight before opening the browser and gives a clear instruction if another process owns the port. After the correct server started, cached front-end files could still make Commit 11 look like the earlier interface until a cache-free page was opened. Commit 12 sends static assets with no-cache headers and opens a commit-specific URL. Regression tests cover the default-model consistency, port checks, launcher ordering, and cache headers. These changes make Commit 12 more than a report correction: the same human testing that challenged the AI output also improved startup reliability.
+
+The transition from Commit 11 to Commit 12 is therefore the clearest example of my own critical role in the project. I did not stop when the connection turned green or when all six stage indicators completed. I inspected the product's actual judgement, found a serious AI error and two overconfidence problems, traced them to reusable weaknesses, and converted that review into safeguards and tests. Commit 12 is better because it has been challenged by its human author, not because the AI produced a more confident answer.
+
+## 8. Useful and misleading AI assistance
 
 I can report the development interaction honestly without inventing model-output quotations. The most useful outputs were process-level design critiques. The assistant recognized that several requested features were already partly present and that the launcher was the obstruction. It identified cache invalidation as a hidden failure mode. It also separated two security questions that I initially mixed together: writing a new key from a local page is different from sending the existing key back to that page. This helped me preserve the one-way design.
 
@@ -79,9 +97,9 @@ The AI was also useful in producing structured drafts, test ideas, and alternati
 
 The misleading part was not necessarily a single false sentence. It was the cumulative impression that earlier generated work was more complete than it was. The original vendor-specific design looked modular because communication lived in one file, yet it still depended on one provider's API and features. Later, the green badge said a key was loaded even though the provider could reject every request. The old launcher had been generated as a helpful setup flow, but in practice it prevented the no-key interface from opening. Finally, Claude's interrupted session demonstrated that a confident progress update can outlive the available context and leave unfinished integration.
 
-I therefore distinguish three levels of evidence. I directly observed the launcher behavior, configuration fields, cache decorator, provider rejection, and assistant usage limit. I inferred design risks from those observations. I did **not** invent successful incident-analysis responses, exact hallucinated sentences, or live-provider test results that I did not obtain. That honesty is more valuable than filling the report with impressive but unverifiable examples.
+I therefore distinguish three levels of evidence. I directly observed the launcher behavior, configuration fields, cache decorator, provider rejection, and assistant usage limit. I inferred design risks from those observations. I did **not** invent model-output quotations, exact hallucinated sentences, or provider test results beyond what I actually observed. That honesty is more valuable than filling the report with impressive but unverifiable examples.
 
-## 8. Facts, assumptions, hypotheses, and actions in my own reasoning
+## 9. Facts, assumptions, hypotheses, and actions in my own reasoning
 
 I used the same structure on my development decisions. A fact was that `.env` contained a non-empty string; an assumption was that the string might be a valid key; the hypothesis was that the configured endpoint and model would accept it; the action was a small connection test. The old badge collapsed the fact and hypothesis. Commit 11 keeps them separate.
 
@@ -89,7 +107,7 @@ Another fact was that `get_settings()` was cached. An assumption was that writin
 
 For the provider redesign, the fact was that six services called one AI boundary. The assumption was that this made the tool provider-independent. Comparing settings, imports, request fields, and dependencies showed that assumption was false. The resulting action was a bounded client/configuration rewrite rather than a change to every service.
 
-## 9. Cognitive biases and fallacies encountered
+## 10. Cognitive biases and fallacies encountered
 
 ### Confirmation bias
 
@@ -123,7 +141,7 @@ After finding the cache issue, it was tempting to say that cache invalidation wa
 
 An unusual AI or infrastructure explanation can sound more sophisticated than a common setup error. I mitigated this by checking simple causes first: missing values, wrong model, endpoint mismatch, permissions, and stale configuration. The tool's prompts similarly require at least one ordinary operational hypothesis so rare explanations do not dominate merely because they are interesting.
 
-## 10. Problems encountered and solutions
+## 11. Problems encountered and solutions
 
 The largest technical problem was maintaining strict reasoning while supporting multiple providers. Providers differ in structured-output support and error behavior. I handled that variance at one client boundary, retained local Pydantic validation, and exposed provider messages instead of guessing their meaning.
 
@@ -133,7 +151,7 @@ The largest reasoning problem was confusing configuration presence with successf
 
 The largest process problem was continuity after Claude reached its token or usage limit. I solved it by returning to evidence: the brief, the latest complete snapshot, the file tree, and the exact unfinished requirements. This prevented me from blindly continuing an assumed implementation.
 
-## 11. Ethical and professional considerations
+## 12. Ethical and professional considerations
 
 The main ethical risk is over-trust. IncidentIQ can generate a plausible explanation or a risky action, but responsibility remains with the engineer. The interface therefore shows uncertainty, competing hypotheses, counter-evidence, and verification status. It should never claim authority it has not earned.
 
@@ -141,17 +159,17 @@ Production evidence may contain personal data, tokens, internal addresses, or co
 
 Browser-based writing to `.env` has a modest security aspect. For this local coursework prototype, the server binds to `127.0.0.1`, `.env` is ignored by Git and excluded from the distributable archive, and the stored key is never read back into the page. I deliberately did not claim that Commit 11 implements Origin or CSRF hardening. Adding Origin validation, CSRF protection, stricter permissions, and possibly an operating-system credential store would be appropriate future hardening. I kept that out of this commit because the immediate risk in a local demonstration is limited and rushed security middleware could introduce startup or browser-compatibility bugs.
 
-## 12. Evaluation and future improvements
+## 13. Evaluation and future improvements
 
-IncidentIQ meets the intended strong-prototype scope: it has structured inputs, six analysis outputs, multiple example incidents, evidence checking, confidence and counter-evidence, reasoning-risk detection, graceful stage failure, Markdown export, tests that do not require a real key, and a one-click local interface. Commits 10 and 11 improve two weaknesses that only became clear through critical use: provider dependence and misleading setup state.
+IncidentIQ meets the intended strong-prototype scope: it has structured inputs, six analysis outputs, multiple example incidents, evidence checking, confidence and counter-evidence, reasoning-risk detection, graceful stage failure, Markdown export, tests that do not require a real key, and a one-click local interface. Commits 10 and 11 improve two weaknesses that only became clear through critical use: provider dependence and misleading setup state. Commit 12 adds a third level of assurance by responding to semantic defects I found during my manual review of a complete investigation.
 
 I do not treat this as proof that the analysis is accurate. A proper evaluation needs incidents with known causes, repeated runs, comparison across models, and measures such as whether the true cause appears among the top hypotheses and whether cited claims are actually entailed by the evidence. Citation matching detects invented quotations but not every misleading interpretation.
 
 Future improvements should include automatic redaction, retrieval over larger log sets, saved investigations, side-by-side model comparison, accessibility testing of status indicators, stronger local configuration security, and a broader evaluation dataset with ground truth. The most valuable next experiment would run the same incident through two providers and display agreements and disagreements. That would turn provider independence into an explicit uncertainty tool rather than only a configuration feature.
 
-## 13. Conclusion
+## 14. Conclusion
 
-The strongest lesson from this project is that critical AI use is an active engineering practice. I worked iteratively, questioned results between commits, changed designs that looked finished, and documented where the assistant helped and where it created false confidence. Commit 9 to 10 showed that a clean-looking abstraction could still hide vendor dependence. Commit 10 to 11 showed that a present key is not necessarily a valid key and that technically correct setup can still be poor user experience.
+The strongest lesson from this project is that critical AI use is an active engineering practice. I worked iteratively, questioned results between commits, changed designs that looked finished, and documented where the assistant helped and where it created false confidence. Commit 9 to 10 showed that a clean-looking abstraction could still hide vendor dependence. Commit 10 to 11 showed that a present key is not necessarily a valid key and that technically correct setup can still be poor user experience. Commit 11 to 12 showed that a verified connection and a complete-looking report still do not replace human evaluation: I found a chronological error, an internal confidence contradiction, and an overcertain operational claim, then corrected the reusable reasoning process rather than concealing the mistakes in one export.
 
 AI accelerated drafting, implementation ideas, failure-mode discovery, and prompt refinement. It did not remove my responsibility to inspect, test, narrow scope, and communicate uncertainty. In both the product and my own workflow, the same rule held: separate facts from assumptions, treat explanations as hypotheses, and take verifiable actions before claiming success.
 

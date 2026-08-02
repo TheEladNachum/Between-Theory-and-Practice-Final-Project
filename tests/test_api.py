@@ -134,6 +134,33 @@ def test_index_is_served():
     assert client.get("/").status_code == 200
 
 
+@pytest.mark.parametrize(
+    "path",
+    ("/", "/static/css/styles.css", "/static/js/main.js", "/static/js/settings.js"),
+)
+def test_frontend_files_cannot_be_reused_from_an_older_commit(path):
+    response = client.get(path)
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == (
+        "no-store, no-cache, must-revalidate, max-age=0"
+    )
+    assert response.headers["pragma"] == "no-cache"
+    assert response.headers["expires"] == "0"
+
+
+def test_gemini_default_is_consistent_across_backend_env_and_browser():
+    expected = "gemini-3-flash-preview"
+
+    assert config_module.Settings.model_fields["ai_model"].default == expected
+    assert f"AI_MODEL={expected}" in (
+        config_module.PROJECT_ROOT / ".env.example"
+    ).read_text(encoding="utf-8")
+    assert f"model: '{expected}'" in (
+        config_module.STATIC_DIR / "js" / "settings.js"
+    ).read_text(encoding="utf-8")
+
+
 def test_examples_are_listed_and_loadable():
     listing = client.get("/api/examples").json()["examples"]
     assert listing, "no example incidents were found"

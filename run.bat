@@ -54,6 +54,15 @@ if not exist ".env" (
 )
 
 echo   [3/4] Local configuration ready.
+
+REM --- 5. Refuse to open an older server on the same port ------------------
+".venv\Scripts\python.exe" -m app.portcheck --host 127.0.0.1 --port 8000
+if errorlevel 1 (
+    echo.
+    pause
+    exit /b 1
+)
+
 echo   [4/4] Starting the server...
 echo.
 echo   -------------------------------------------------------------
@@ -63,7 +72,7 @@ echo    Leave this window open. Close it, or press Ctrl+C, to stop.
 echo   -------------------------------------------------------------
 echo.
 
-start "" /b cmd /c "timeout /t 4 /nobreak >nul & start http://127.0.0.1:8000"
+start "" /b cmd /c "timeout /t 4 /nobreak >nul & start http://127.0.0.1:8000/?commit=12"
 
 ".venv\Scripts\python.exe" -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 

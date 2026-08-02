@@ -32,13 +32,28 @@ logging.basicConfig(
 )
 log = logging.getLogger("incidentiq")
 
+_NO_BROWSER_CACHE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
+
+class NoCacheStaticFiles(StaticFiles):
+    """Serve local frontend assets without reusing files from an older commit."""
+
+    async def get_response(self, path: str, scope: Dict[str, Any]):
+        response = await super().get_response(path, scope)
+        response.headers.update(_NO_BROWSER_CACHE_HEADERS)
+        return response
+
 app = FastAPI(
     title="IncidentIQ",
     description="AI-assisted incident response and root-cause analysis.",
     version=__version__,
 )
 
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+app.mount("/static", NoCacheStaticFiles(directory=STATIC_DIR), name="static")
 
 
 # --------------------------------------------------------------------------- #
@@ -48,7 +63,10 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.get("/", include_in_schema=False)
 def index() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
+    return FileResponse(
+        STATIC_DIR / "index.html",
+        headers=_NO_BROWSER_CACHE_HEADERS,
+    )
 
 
 @app.get("/api/health")

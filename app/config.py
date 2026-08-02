@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     # -- AI provider (any OpenAI-compatible endpoint) -----------------------
     ai_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
     ai_api_key: str = ""
-    ai_model: str = "gemini-2.5-flash"
+    ai_model: str = "gemini-3-flash-preview"
 
     # -- shared -------------------------------------------------------------
     max_output_tokens: int = 16000

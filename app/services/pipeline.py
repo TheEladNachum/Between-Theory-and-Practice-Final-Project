@@ -86,6 +86,11 @@ def run(client: AIClient, incident: IncidentInput) -> Iterator[Dict[str, Any]]:
         risks, risk_warnings = risks_stage.run(
             client, evidence_block, summary, timeline, hypotheses
         )
+        risk_warnings.extend(
+            risks_stage.reconcile_hypothesis_confidence(hypotheses, risks)
+        )
+        if hypotheses is not None:
+            result.hypotheses = hypotheses.hypotheses
         result.reasoning_risks = risks.risks
         result.warnings.extend(risk_warnings)
         result.stages_completed.append("reasoning_risks")

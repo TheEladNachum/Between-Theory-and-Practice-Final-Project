@@ -201,6 +201,14 @@ class ReasoningRisk(BaseModel):
     )
     why_it_matters: str
     mitigation: str = Field(description="What to do to reduce its effect.")
+    linked_hypothesis: Optional[str] = Field(
+        default=None,
+        description="Exact hypothesis title affected by this risk, if any.",
+    )
+    confidence_ceiling: Optional[Confidence] = Field(
+        default=None,
+        description="Highest defensible confidence after this risk audit, if any.",
+    )
 
 
 # --------------------------------------------------------------------------- #
