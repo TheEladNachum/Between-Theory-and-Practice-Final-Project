@@ -7,11 +7,35 @@
 
 async function getJSON(url) {
   const response = await fetch(url);
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  if (!response.ok) throw await responseError(response);
   return response.json();
 }
 
+async function postJSON(url, body) {
+  const options = { method: 'POST' };
+  if (body !== undefined) {
+    options.headers = { 'Content-Type': 'application/json' };
+    options.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(url, options);
+  if (!response.ok) throw await responseError(response);
+  return response.json();
+}
+
+async function responseError(response) {
+  let message = `${response.status} ${response.statusText}`;
+  try {
+    const body = await response.json();
+    if (typeof body.detail === 'string') message = body.detail;
+    else if (typeof body.message === 'string') message = body.message;
+  } catch { /* keep the HTTP status when the response is not JSON */ }
+  return new Error(message);
+}
+
 export const getConfig = () => getJSON('/api/config');
+export const saveConfig = (settings) => postJSON('/api/config', settings);
+export const testConfig = () => postJSON('/api/config/test');
 export const listExamples = () => getJSON('/api/examples');
 export const getExample = (id) => getJSON(`/api/examples/${encodeURIComponent(id)}`);
 

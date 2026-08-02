@@ -21,6 +21,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 STATIC_DIR = PROJECT_ROOT / "static"
 EXAMPLES_DIR = PROJECT_ROOT / "examples"
+ENV_FILE = PROJECT_ROOT / ".env"
+ENV_EXAMPLE_FILE = PROJECT_ROOT / ".env.example"
 
 # Human-readable names for the hosts we expect to see in AI_BASE_URL. Purely
 # cosmetic - used in the UI and the logs so the user can see which endpoint is
@@ -40,7 +42,7 @@ class Settings(BaseSettings):
     """Typed view over the environment. Validated once at startup."""
 
     model_config = SettingsConfigDict(
-        env_file=PROJECT_ROOT / ".env",
+        env_file=ENV_FILE,
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -77,4 +79,7 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     """Cached accessor so the .env file is parsed only once per process."""
-    return Settings()
+    # Pass the path at call time rather than relying only on ``model_config``.
+    # Besides making the source of truth explicit, this keeps cache-refresh and
+    # temporary-file tests isolated from a developer's real configuration.
+    return Settings(_env_file=ENV_FILE)

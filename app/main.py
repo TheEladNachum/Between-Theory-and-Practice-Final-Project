@@ -19,8 +19,10 @@ from fastapi.staticfiles import StaticFiles
 
 from app import __version__
 from app.ai.client import AIClient, ModelError
+from app.ai.connection import check_connection
 from app.config import EXAMPLES_DIR, STATIC_DIR, get_settings
-from app.schemas import IncidentInput
+from app.envfile import update_ai_settings
+from app.schemas import AISettingsUpdate, IncidentInput
 from app.services import pipeline
 
 logging.basicConfig(
@@ -54,18 +56,81 @@ def health() -> Dict[str, str]:
     return {"status": "ok", "version": __version__}
 
 
-@app.get("/api/config")
-def config() -> Dict[str, Any]:
-    """What the frontend needs to know at startup.
-
-    Deliberately does not return the API key, or any prefix of it.
-    """
+def _public_config() -> Dict[str, Any]:
+    """Return the browser-safe configuration state, never the API key."""
     settings = get_settings()
     return {
         "configured": settings.is_configured,
         "provider": settings.provider_name,
         "model": settings.ai_model,
+        "base_url": settings.ai_base_url,
+        "status": "unverified" if settings.is_configured else "unconfigured",
         "version": __version__,
+    }
+
+
+@app.get("/api/config")
+def config() -> Dict[str, Any]:
+    """What the frontend needs at startup, without the write-only API key."""
+    return _public_config()
+
+
+@app.post("/api/config")
+def save_config(update: AISettingsUpdate) -> Dict[str, Any]:
+    """Save local AI settings and make them active without a server restart."""
+    api_key = update.api_key.get_secret_value().strip() if update.api_key else None
+    if not api_key:
+        api_key = None  # An empty key field means "keep the current key".
+
+    try:
+        update_ai_settings(
+            api_key=api_key,
+            model=update.model,
+            base_url=str(update.base_url),
+        )
+    except (OSError, ValueError) as exc:
+        # The error describes the file/value problem, never the secret value.
+        raise HTTPException(
+            status_code=500 if isinstance(exc, OSError) else 400,
+            detail=f"Could not save AI settings: {exc}",
+        ) from exc
+
+    # Settings are cached for normal requests.  Clearing here is what makes a
+    # browser edit take effect immediately rather than only after a restart.
+    get_settings.cache_clear()
+    return _public_config()
+
+
+@app.post("/api/config/test")
+def test_saved_config() -> Dict[str, Any]:
+    """Verify the saved endpoint, key and model with one minimal real request."""
+    settings = get_settings()
+    if not settings.is_configured:
+        return {
+            "ok": False,
+            "status": "unconfigured",
+            "message": "No API key is configured yet.",
+            "provider": settings.provider_name,
+            "model": settings.ai_model,
+        }
+
+    try:
+        check_connection(settings)
+    except ModelError as exc:
+        return {
+            "ok": False,
+            "status": "invalid",
+            "message": str(exc),
+            "provider": settings.provider_name,
+            "model": settings.ai_model,
+        }
+
+    return {
+        "ok": True,
+        "status": "valid",
+        "message": "Connection successful. The provider accepted the key and model.",
+        "provider": settings.provider_name,
+        "model": settings.ai_model,
     }
 
 
@@ -121,9 +186,8 @@ def analyse(incident: IncidentInput) -> StreamingResponse:
     if not settings.is_configured:
         raise HTTPException(
             status_code=503,
-            detail="No AI_API_KEY configured. Copy .env.example to .env, set "
-                   "AI_API_KEY (and AI_BASE_URL / AI_MODEL if not using the "
-                   "default), and restart the server.",
+            detail="No API key is configured. Use the AI settings panel at the "
+                   "top of the page to save one.",
         )
     if incident.is_empty():
         raise HTTPException(

@@ -35,31 +35,12 @@ fi
 echo "  [2/4] Installing dependencies (this may take a minute the first time)..."
 .venv/bin/python -m pip install --quiet --disable-pip-version-check -r requirements.txt
 
-# --- 4. API key -------------------------------------------------------------
+# --- 4. Local configuration -------------------------------------------------
 if [ ! -f ".env" ]; then
     cp .env.example .env
-    echo
-    echo "  [!] A .env file has been created for you."
-    echo
-    echo "      Open .env and paste your API key after AI_API_KEY= then run"
-    echo "      this script again."
-    echo
-    echo "      Get a FREE Google Gemini key at https://aistudio.google.com/apikey"
-    echo "      (the default settings use Gemini). Other providers - Groq,"
-    echo "      OpenRouter, a local Ollama model, OpenAI - are listed in .env."
-    echo
-    exit 0
 fi
 
-if ! grep -qE '^AI_API_KEY=.+' .env; then
-    echo
-    echo "  [!] AI_API_KEY is still empty in .env"
-    echo "      Paste your key after the = sign, save, and run this script again."
-    echo
-    exit 0
-fi
-
-echo "  [3/4] Configuration looks good."
+echo "  [3/4] Local configuration ready."
 echo "  [4/4] Starting the server..."
 echo
 echo "  -------------------------------------------------------------"

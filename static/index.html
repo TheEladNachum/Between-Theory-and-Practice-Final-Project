@@ -18,12 +18,83 @@
     </div>
   </div>
   <div class="header-actions">
-    <span id="config-status" class="pill pill-muted">checking&hellip;</span>
+    <div class="config-summary">
+      <div class="config-summary-row">
+        <span id="config-status" class="pill config-status pill-warn" role="status" aria-live="polite">
+          Checking AI connection&hellip;
+        </span>
+        <button id="settings-open" class="btn btn-ghost btn-sm" type="button">
+          Edit AI settings
+        </button>
+      </div>
+      <span id="config-detail" class="config-detail" aria-live="polite" hidden></span>
+    </div>
     <button id="theme-toggle" class="btn btn-ghost" type="button" title="Toggle light / dark">
       <span data-theme-icon>&#9789;</span>
     </button>
   </div>
 </header>
+
+<dialog id="settings-dialog" class="settings-dialog" aria-labelledby="settings-title">
+  <form id="settings-form" class="settings-form">
+    <div class="settings-head">
+      <div>
+        <h2 id="settings-title">AI settings</h2>
+        <p>Choose an OpenAI-compatible provider, then save and verify the connection.</p>
+      </div>
+      <button id="settings-close" class="btn btn-ghost btn-sm" type="button" aria-label="Close AI settings">
+        Close
+      </button>
+    </div>
+
+    <div class="settings-body">
+      <label class="field">
+        <span class="field-label">Provider</span>
+        <select id="settings-provider" name="provider">
+          <option value="gemini">Google Gemini</option>
+          <option value="groq">Groq</option>
+          <option value="openrouter">OpenRouter</option>
+          <option value="openai">OpenAI</option>
+          <option value="anthropic">Anthropic</option>
+          <option value="ollama">Ollama (local)</option>
+          <option value="custom">Custom endpoint</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="field-label">API base URL</span>
+        <input id="settings-base-url" name="base_url" type="url" required
+               placeholder="https://provider.example/v1">
+      </label>
+
+      <label class="field">
+        <span class="field-label">Model</span>
+        <input id="settings-model" name="model" type="text" required
+               placeholder="Model name">
+      </label>
+
+      <label class="field">
+        <span class="field-label">
+          API key
+          <em id="settings-key-hint" class="field-hint">Paste a key to replace the saved one.</em>
+        </span>
+        <input id="settings-api-key" name="api_key" type="password"
+               autocomplete="new-password" spellcheck="false"
+               placeholder="Paste a new API key">
+      </label>
+
+      <p class="settings-privacy">
+        The saved key is written to the local <code>.env</code> file. It is never displayed or sent back to this page.
+      </p>
+      <div id="settings-result" class="settings-result" role="status" aria-live="polite" hidden></div>
+    </div>
+
+    <div class="settings-actions">
+      <button id="settings-test" class="btn btn-ghost" type="button">Test saved connection</button>
+      <button id="settings-save" class="btn btn-primary" type="submit">Save &amp; test connection</button>
+    </div>
+  </form>
+</dialog>
 
 <main class="layout">
 

@@ -48,42 +48,12 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM --- 4. API key -----------------------------------------------------------
+REM --- 4. Local configuration ----------------------------------------------
 if not exist ".env" (
     copy ".env.example" ".env" >nul
-    echo.
-    echo   [!] A .env file has been created for you.
-    echo.
-    echo       Open .env and paste your API key after AI_API_KEY=  then run
-    echo       this file again.
-    echo.
-    echo       Get a FREE Google Gemini key at https://aistudio.google.com/apikey
-    echo       ^(the default settings use Gemini^). Other providers - Groq,
-    echo       OpenRouter, a local Ollama model, OpenAI - are listed in .env.
-    echo.
-    notepad ".env"
-    pause
-    exit /b 0
 )
 
-REM Read AI_API_KEY out of .env. `eol=#` skips comment lines; splitting on "="
-REM gives the key name in %%A and its value in %%B. Works with either Windows
-REM or Unix line endings, unlike a findstr regex.
-set "_HASKEY="
-for /f "usebackq eol=# tokens=1,* delims==" %%A in (".env") do (
-    if /i "%%~A"=="AI_API_KEY" set "_HASKEY=%%~B"
-)
-if not defined _HASKEY (
-    echo.
-    echo   [!] AI_API_KEY is still empty in .env
-    echo       Paste your key after the = sign, save, and run this file again.
-    echo.
-    notepad ".env"
-    pause
-    exit /b 0
-)
-
-echo   [3/4] Configuration looks good.
+echo   [3/4] Local configuration ready.
 echo   [4/4] Starting the server...
 echo.
 echo   -------------------------------------------------------------

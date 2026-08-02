@@ -11,7 +11,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import AnyHttpUrl, BaseModel, Field, SecretStr, field_validator
 
 # --------------------------------------------------------------------------- #
 # Input
@@ -56,6 +56,29 @@ class IncidentInput(BaseModel):
 
     def is_empty(self) -> bool:
         return not self.evidence_sources()
+
+
+class AISettingsUpdate(BaseModel):
+    """Write-only browser input for the local AI provider configuration.
+
+    The current key is never sent to the browser.  Omitting it (or submitting
+    an empty field) means "keep the saved key" while changing the endpoint or
+    model.
+    """
+
+    api_key: Optional[SecretStr] = None
+    model: str = Field(min_length=1, max_length=200)
+    base_url: AnyHttpUrl
+
+    @field_validator("model")
+    @classmethod
+    def model_must_not_be_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Model is required.")
+        if "\n" in value or "\r" in value:
+            raise ValueError("Model must be a single line.")
+        return value
 
 
 # --------------------------------------------------------------------------- #

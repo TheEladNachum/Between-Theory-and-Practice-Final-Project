@@ -22,7 +22,14 @@ const state = {
   /** Fatal error message, or null. */
   error: null,
   /** Backend config info, filled in at startup. */
-  config: { configured: false, model: '', effort: '' },
+  config: {
+    configured: false,
+    provider: '',
+    model: '',
+    base_url: '',
+    status: 'loading',
+    connection_verified: false,
+  },
 };
 
 export function getState() {

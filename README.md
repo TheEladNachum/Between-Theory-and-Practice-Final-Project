@@ -23,9 +23,9 @@ not find.
 
 Double-click **`run.bat`**.
 
-On first run it creates a virtual environment, installs the dependencies, and
-opens `.env` in Notepad so you can paste your API key. Save the file and
-double-click `run.bat` again. Your browser opens automatically.
+On first run it creates a virtual environment, installs the dependencies,
+creates the local `.env` file from the safe template, starts the server, and
+opens the browser. The project opens even when no API key is configured.
 
 ### macOS / Linux
 
@@ -34,7 +34,7 @@ chmod +x run.sh   # first time only
 ./run.sh
 ```
 
-Same flow: it will tell you when it needs your API key.
+The server and browser start even when no API key is configured.
 
 ### Manual setup
 
@@ -44,7 +44,6 @@ python -m venv .venv
 source .venv/bin/activate       # macOS / Linux
 
 pip install -r requirements.txt
-cp .env.example .env            # then paste your key into it
 
 python -m uvicorn app.main:app --reload
 ```
@@ -55,13 +54,19 @@ Then open <http://127.0.0.1:8000>.
 
 IncidentIQ works with any OpenAI-compatible provider. The default settings use
 **Google Gemini**, which has a free tier - get a free key at
-<https://aistudio.google.com/apikey> and paste it into `.env` after
-`AI_API_KEY=`.
+<https://aistudio.google.com/apikey>. In the running app, click **Edit AI
+settings**, paste the key, and choose **Save & test connection**.
 
-To use a different provider (Groq, OpenRouter, a local Ollama model, OpenAI,
-Anthropic), uncomment the relevant block in `.env.example` - it is a change to
-`.env` only, never to the code. `.env` is git-ignored and must never be
-committed.
+The same panel contains presets for Groq, OpenRouter, a local Ollama model,
+OpenAI, and Anthropic, plus a custom endpoint option. The saved key is
+write-only: it is written to `.env`, but the backend never returns it to the
+browser. `.env` is git-ignored and must never be committed.
+
+The connection indicator is deliberately stricter than a "key loaded" badge:
+
+- **Red** - no key is configured, or the provider rejected the connection.
+- **Orange** - settings exist but are unverified, or a check is in progress.
+- **Green** - the configured provider accepted a real minimal request.
 
 ---
 
@@ -110,9 +115,10 @@ Everything exports to a single Markdown file.
 
 ## Configuration
 
-All configuration is in `.env`. See `.env.example` for the annotated version,
-including ready-to-use blocks for Groq, OpenRouter, Ollama, OpenAI and
-Anthropic.
+AI provider settings can be changed from the browser. Advanced and server
+settings remain in `.env`; see `.env.example` for the annotated version. A
+browser save updates only `AI_BASE_URL`, `AI_API_KEY`, and `AI_MODEL`, preserves
+the rest of the file, and becomes active immediately without a restart.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -130,21 +136,25 @@ Anthropic.
 ```
 static/            Browser UI - no build step, ES modules
   js/components/   One render function per result tab
+  js/settings.js   Write-only AI setup and live connection status
 app/
   main.py          HTTP routes and the streaming analysis endpoint
   config.py        All configuration
+  envfile.py       Comment-preserving local .env updates
   schemas.py       The data model: Fact / Assumption / Hypothesis / Action
   ai/              Talks to any OpenAI-compatible provider
     prompts.py     Every prompt, in one place
     client.py      Structured output, with a plain-JSON fallback
+    connection.py  Minimal real provider connection check
     parsing.py     Pydantic model -> JSON schema (and prompt hint), and back
   core/
     biases.py      The eight biases from the brief, as data
     evidence.py    Citation verification
   services/        One module per stage, plus pipeline.py
 examples/          Three realistic incident datasets
-tests/             61 tests - no API key needed
-docs/              Prompt documentation and the reflective report draft
+tests/             69 tests - no API key needed
+docs/              Prompt documentation and the final reflective report
+tools/             Reproducible reflective-report DOCX builder
 ```
 
 ---
@@ -156,9 +166,10 @@ docs/              Prompt documentation and the reflective report draft
 .venv/bin/python -m pytest              # macOS / Linux
 ```
 
-61 tests, none of which call the API or need a key. They cover the citation
-checker (the component the tool's credibility rests on), schema generation,
-the HTTP layer, and the pipeline's behaviour when stages fail.
+69 tests, none of which call a live provider or need a key. They cover the
+citation checker (the component the tool's credibility rests on), schema
+generation, the HTTP layer, safe `.env` updates, mocked connection validation,
+and the pipeline's behaviour when stages fail.
 
 ---
 
@@ -166,8 +177,10 @@ the HTTP layer, and the pipeline's behaviour when stages fail.
 
 - **[docs/PROMPTS.md](docs/PROMPTS.md)** - every prompt, why it is worded that
   way, and the table of prompt iterations that did not work.
-- **[docs/REFLECTIVE_REPORT_DRAFT.md](docs/REFLECTIVE_REPORT_DRAFT.md)** - the
-  reflective report, with the sections needing personal observation marked.
+- **[docs/REFLECTIVE_REPORT.md](docs/REFLECTIVE_REPORT.md)** - the completed
+  first-person reflective report.
+- **[docs/REFLECTIVE_REPORT.docx](docs/REFLECTIVE_REPORT.docx)** - the formatted
+  10-page Word submission generated from the Markdown source.
 
 ---
 

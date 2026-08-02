@@ -7,9 +7,10 @@
  */
 
 import { $, $$, clear, el, show } from './dom.js';
-import { analyse, getConfig, getExample, listExamples } from './api.js';
+import { analyse, getExample, listExamples } from './api.js';
 import { freshStages, getState, setStage, setState, subscribe } from './state.js';
 import { download } from './report.js';
+import { initSettings } from './settings.js';
 
 import * as summaryView from './components/summary.js';
 import * as timelineView from './components/timeline.js';
@@ -54,39 +55,12 @@ async function init() {
 
   subscribe(renderApp);
 
-  await Promise.all([loadConfig(), loadExamples()]);
+  await Promise.all([initSettings(), loadExamples()]);
 }
 
 // --------------------------------------------------------------------------
 // Startup data
 // --------------------------------------------------------------------------
-
-async function loadConfig() {
-  const pill = $('#config-status');
-  try {
-    const config = await getConfig();
-    setState({ config });
-
-    $('#model-badge').textContent = `${config.provider} · ${config.model}`;
-
-    if (config.configured) {
-      pill.className = 'pill pill-ok';
-      pill.textContent = 'API key loaded';
-    } else {
-      pill.className = 'pill pill-danger';
-      pill.textContent = 'no API key';
-      pushWarning(
-        'No AI_API_KEY found. Copy .env.example to .env, set AI_API_KEY (a free '
-        + 'Gemini key works with the defaults), then restart the server.',
-        true,
-      );
-      $('#analyse-btn').disabled = true;
-    }
-  } catch {
-    pill.className = 'pill pill-danger';
-    pill.textContent = 'backend unreachable';
-  }
-}
 
 async function loadExamples() {
   const select = $('#example-select');
@@ -315,7 +289,7 @@ function renderApp(state) {
   renderWarnings(state);
   renderResults(state);
 
-  $('#analyse-btn').disabled = state.status === 'running' || !state.config.configured;
+  $('#analyse-btn').disabled = state.status === 'running' || !state.config.connection_verified;
   $('#analyse-btn').textContent = state.status === 'running' ? 'Analysing…' : 'Analyse incident';
   show($('#cancel-btn'), state.status === 'running');
   $('#export-btn').disabled = !state.result;
